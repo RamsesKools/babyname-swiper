@@ -76,7 +76,7 @@ def undo_last(user: str, list_slug: str) -> str | None:
         ).fetchone()
         if row is None:
             return None
-        name = row["name"]
+        name: str = row["name"]
         cur.execute(
             "DELETE FROM swipes WHERE user = ? AND list_slug = ? AND name = ?",
             (user, list_slug, name),
