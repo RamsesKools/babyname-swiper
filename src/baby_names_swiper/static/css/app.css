@@ -327,50 +327,96 @@ body {
 }
 
 .overview-section {
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
 }
 
-.overview-section h2 {
+.overview-section > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.85rem 1.1rem;
     font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--c-text-secondary);
-    margin-bottom: 0.75rem;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 150ms ease, color 150ms ease;
+}
+
+.overview-section > summary::-webkit-details-marker {
+    display: none;
+}
+
+.overview-section > summary::before {
+    content: "▸";
+    display: inline-block;
+    font-size: 11px;
+    color: var(--c-text-muted);
+    transition: transform 150ms ease;
+}
+
+.overview-section[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.overview-section > summary:hover {
+    background: var(--c-blue-light);
+    color: var(--c-blue);
+}
+
+.overview-section > summary:hover::before {
+    color: var(--c-blue);
 }
 
 .overview-section .count {
     color: var(--c-text-muted);
     font-weight: 400;
-    margin-left: 0.5rem;
+    margin-left: auto;
 }
 
-.name-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.5rem;
+.overview-section > summary:hover .count {
+    color: var(--c-blue);
 }
 
-.name-chip {
-    background: var(--c-surface);
-    border: 0.5px solid var(--c-border);
-    border-radius: var(--r);
-    padding: 0.6rem 0.85rem;
+.name-list {
+    list-style: none;
+    padding: 0.25rem 0 0.5rem;
+    margin: 0;
+    border-top: 0.5px solid var(--c-border);
+}
+
+.name-row {
+    padding: 0.55rem 1.1rem;
     font-size: 15px;
     color: var(--c-text);
+    border-bottom: 0.5px solid var(--c-border);
 }
 
-.name-chip.match {
+.name-row:last-child {
+    border-bottom: none;
+}
+
+.name-row.match {
     background: var(--c-success-light);
-    border-color: var(--c-green-border);
     color: var(--c-green-text);
     font-weight: 500;
 }
 
-.name-chip.dislike {
+.name-row.dislike {
     color: var(--c-text-muted);
     text-decoration: line-through;
+}
+
+.overview-section .empty-note {
+    padding: 0.5rem 1.1rem 0.85rem;
+    border-top: 0.5px solid var(--c-border);
 }
 
 .empty-note {
