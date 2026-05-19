@@ -432,11 +432,40 @@ body {
 .overview-section .count {
     color: var(--c-text-muted);
     font-weight: 400;
-    margin-left: auto;
 }
 
 .overview-section > summary:hover .count {
     color: var(--c-blue);
+}
+
+.summary-action {
+    margin-left: auto;
+    padding: 0.35rem 0.7rem;
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-blue);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.summary-action:hover {
+    background: var(--c-blue);
+    color: white;
+    border-color: var(--c-blue);
+}
+
+.overview-section > summary:hover .summary-action {
+    color: var(--c-blue);
+}
+
+.overview-section > summary:hover .summary-action:hover {
+    color: white;
 }
 
 .name-list {

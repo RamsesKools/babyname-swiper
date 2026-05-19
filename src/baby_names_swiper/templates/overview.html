@@ -43,7 +43,17 @@
 </details>
 
 <details class="overview-section">
-    <summary>Partner liked (and you haven't yet) <span class="count">({{ ov.partner_likes_only | length }})</span></summary>
+    <summary>
+        <span>Partner liked (and you haven't yet)</span>
+        <span class="count">({{ ov.partner_likes_only | length }})</span>
+        {% if ov.partner_likes_only %}
+        <a class="summary-action"
+           href="/swipe?list={{ active_list }}&mode=partner_likes"
+           onclick="event.stopPropagation()">
+            swipe partner likes &rarr;
+        </a>
+        {% endif %}
+    </summary>
     {% if ov.partner_likes_only %}
     <ul class="name-list">
         {% for n in ov.partner_likes_only %}<li class="name-row">{{ n }}</li>{% endfor %}
