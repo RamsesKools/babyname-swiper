@@ -1,5 +1,7 @@
 <div id="card" class="swiper-card-wrap">
     {% set name_value = name if name is defined else current_name %}
+    {% set mode_value = active_mode if active_mode is defined else 'random' %}
+    {% set reswipe_value = 1 if (reswipe is defined and reswipe) else 0 %}
     <div class="card"
          data-card
          data-name="{{ name_value }}"
@@ -15,7 +17,7 @@
                 hx-post="/swipe"
                 hx-target="#card"
                 hx-swap="outerHTML"
-                hx-vals='{"name": "{{ name_value }}", "direction": 0, "list": "{{ active_list }}"}'>
+                hx-vals='{"name": "{{ name_value }}", "direction": 0, "list": "{{ active_list }}", "mode": "{{ mode_value }}", "reswipe": {{ reswipe_value }}}'>
             nope
         </button>
         <button class="btn btn-like"
@@ -23,7 +25,7 @@
                 hx-post="/swipe"
                 hx-target="#card"
                 hx-swap="outerHTML"
-                hx-vals='{"name": "{{ name_value }}", "direction": 1, "list": "{{ active_list }}"}'>
+                hx-vals='{"name": "{{ name_value }}", "direction": 1, "list": "{{ active_list }}", "mode": "{{ mode_value }}", "reswipe": {{ reswipe_value }}}'>
             like
         </button>
     </div>
@@ -33,7 +35,7 @@
                 hx-post="/swipe/undo"
                 hx-target="#card"
                 hx-swap="outerHTML"
-                hx-vals='{"list": "{{ active_list }}"}'>
+                hx-vals='{"list": "{{ active_list }}", "mode": "{{ mode_value }}", "reswipe": {{ reswipe_value }}}'>
             undo last
         </button>
     </div>

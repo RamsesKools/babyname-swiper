@@ -1,4 +1,6 @@
 <div id="card" class="swiper-card-wrap">
+    {% set mode_value = active_mode if active_mode is defined else 'random' %}
+    {% set reswipe_value = 1 if (reswipe is defined and reswipe) else 0 %}
     <div class="card-empty">
         <p>You've swiped them all in this list.</p>
         <p style="margin-top: 0.75rem;">
@@ -11,7 +13,7 @@
                 hx-post="/swipe/undo"
                 hx-target="#card"
                 hx-swap="outerHTML"
-                hx-vals='{"list": "{{ active_list }}"}'>
+                hx-vals='{"list": "{{ active_list }}", "mode": "{{ mode_value }}", "reswipe": {{ reswipe_value }}}'>
             undo last
         </button>
     </div>

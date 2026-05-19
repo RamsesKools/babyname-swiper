@@ -12,6 +12,17 @@ from baby_names_swiper.names import load_names
 LIKE = 1
 DISLIKE = 0
 
+# next-name modes
+MODE_RANDOM = "random"
+MODE_ALPHA = "alpha"
+MODE_PARTNER_LIKES = "partner_likes"
+VALID_MODES = (MODE_RANDOM, MODE_ALPHA, MODE_PARTNER_LIKES)
+
+# weighting for MODE_RANDOM: relative selection weights
+WEIGHT_PARTNER_LIKE = 5.0     # 5x more likely than a neutral name
+WEIGHT_NEUTRAL = 1.0
+WEIGHT_PARTNER_DISLIKE = 0.2  # 5x less likely than a neutral name
+
 
 @dataclass(frozen=True)
 class Overview:
@@ -50,16 +61,62 @@ def _seen_names(user: str, list_slug: str) -> set[str]:
     return {row["name"] for row in rows}
 
 
-def next_name(user: str, list_slug: str) -> str | None:
-    """Random unseen name from the list, or None if everything has been swiped."""
+def next_name(
+    user: str,
+    list_slug: str,
+    *,
+    mode: str = MODE_RANDOM,
+    reswipe_disliked: bool = False,
+) -> str | None:
+    """Pick the next name to show, given the active mode and reswipe flag.
+
+    Modes:
+      - random: weighted by partner's previous swipes
+      - alpha: next alphabetically
+      - partner_likes: only names the partner liked
+
+    reswipe_disliked: include names the *current user* previously disliked.
+    """
+    if mode not in VALID_MODES:
+        mode = MODE_RANDOM
+
     all_names = load_names(list_slug)
     if not all_names:
         return None
-    seen = _seen_names(user, list_slug)
-    remaining = [n for n in all_names if n not in seen]
-    if not remaining:
+
+    my_likes = _liked_by(user, list_slug)
+    my_dislikes = _disliked_by(user, list_slug)
+
+    # "seen" = anything we should skip showing again on the swipe screen
+    seen = set(my_likes)
+    if not reswipe_disliked:
+        seen |= my_dislikes
+
+    partner = _partner(user)
+    partner_likes = _liked_by(partner, list_slug) if partner else set()
+    partner_dislikes = _disliked_by(partner, list_slug) if partner else set()
+
+    if mode == MODE_PARTNER_LIKES:
+        pool = [n for n in sorted(partner_likes, key=str.casefold) if n not in seen]
+        return pool[0] if pool else None
+
+    pool = [n for n in all_names if n not in seen]
+    if not pool:
         return None
-    return random.choice(remaining)  # noqa: S311 -- not security sensitive
+
+    if mode == MODE_ALPHA:
+        return sorted(pool, key=str.casefold)[0]
+
+    # weighted random
+    weights = [
+        WEIGHT_PARTNER_LIKE
+        if n in partner_likes
+        else WEIGHT_PARTNER_DISLIKE
+        if n in partner_dislikes
+        else WEIGHT_NEUTRAL
+        for n in pool
+    ]
+    return random.choices(pool, weights=weights, k=1)[0]  # noqa: S311 -- not security sensitive
 
 
 def undo_last(user: str, list_slug: str) -> str | None:

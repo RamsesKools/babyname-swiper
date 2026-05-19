@@ -1,7 +1,20 @@
 from __future__ import annotations
 
-from baby_names_swiper import config
-from baby_names_swiper.swipes import DISLIKE, LIKE, next_name, overview, record, undo_last
+from collections import Counter
+import random
+
+from baby_names_swiper import config, swipes as swipes_mod
+from baby_names_swiper.swipes import (
+    DISLIKE,
+    LIKE,
+    MODE_ALPHA,
+    MODE_PARTNER_LIKES,
+    MODE_RANDOM,
+    next_name,
+    overview,
+    record,
+    undo_last,
+)
 
 
 def _seed_list(slug: str, names: list[str]) -> None:
@@ -60,3 +73,64 @@ def test_record_upsert_overrides_direction():
     ov = overview("Ramses", "boys")
     assert ov.my_likes == ["Aaron"]
     assert ov.my_dislikes == []
+
+
+def test_alpha_mode_returns_first_unseen_alphabetically():
+    _seed_list("boys", ["Cas", "Aaron", "Bram"])
+    assert next_name("Ramses", "boys", mode=MODE_ALPHA) == "Aaron"
+    record("Ramses", "boys", "Aaron", LIKE)
+    assert next_name("Ramses", "boys", mode=MODE_ALPHA) == "Bram"
+
+
+def test_partner_likes_mode_only_returns_partner_likes():
+    _seed_list("boys", ["Aaron", "Bram", "Cas", "Dex"])
+    record("Chiara", "boys", "Bram", LIKE)
+    record("Chiara", "boys", "Cas", LIKE)
+    record("Chiara", "boys", "Aaron", DISLIKE)  # not eligible
+    # Ramses has seen nothing yet
+    seen: set[str] = set()
+    for _ in range(5):
+        n = next_name("Ramses", "boys", mode=MODE_PARTNER_LIKES)
+        assert n in {"Bram", "Cas"}
+        seen.add(n)
+    # Alpha order in partner-likes mode
+    assert next_name("Ramses", "boys", mode=MODE_PARTNER_LIKES) == "Bram"
+
+
+def test_partner_likes_mode_returns_none_when_partner_has_no_likes():
+    _seed_list("boys", ["Aaron", "Bram"])
+    assert next_name("Ramses", "boys", mode=MODE_PARTNER_LIKES) is None
+
+
+def test_reswipe_disliked_reincludes_own_dislikes():
+    _seed_list("boys", ["Aaron"])
+    record("Ramses", "boys", "Aaron", DISLIKE)
+    assert next_name("Ramses", "boys") is None
+    assert next_name("Ramses", "boys", reswipe_disliked=True) == "Aaron"
+
+
+def test_reswipe_does_not_reinclude_own_likes():
+    _seed_list("boys", ["Aaron"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    assert next_name("Ramses", "boys", reswipe_disliked=True) is None
+
+
+def test_random_mode_weights_partner_likes_higher(monkeypatch):
+    # Names: "L" was liked by partner, "N" is neutral, "D" was disliked by partner.
+    # With weights 5 : 1 : 0.2, the empirical distribution should be dominated by L.
+    _seed_list("boys", ["L", "N", "D"])
+    record("Chiara", "boys", "L", LIKE)
+    record("Chiara", "boys", "D", DISLIKE)
+
+    monkeypatch.setattr(swipes_mod, "random", random.Random(42))
+
+    counts: Counter[str] = Counter()
+    for _ in range(2000):
+        n = next_name("Ramses", "boys", mode=MODE_RANDOM)
+        assert n is not None
+        counts[n] += 1
+
+    # L: weight 5, N: 1, D: 0.2 => sum 6.2. Expected ratios ~ 0.806 / 0.161 / 0.032.
+    # Generous bounds so the test isn't flaky.
+    assert counts["L"] > counts["N"] * 3
+    assert counts["N"] > counts["D"] * 3

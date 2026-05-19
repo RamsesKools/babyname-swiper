@@ -92,15 +92,25 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-// ---- list-picker dropdown ----
+// ---- swipe controls (list / mode / reswipe) reload the page on change ----
 
 document.addEventListener("change", (event) => {
     const target = event.target;
-    if (target && target.id === "list-picker") {
-        const url = new URL(window.location.href);
-        url.searchParams.set("list", target.value);
-        window.location.href = url.toString();
+    if (!target || !target.dataset || !target.dataset.control) {
+        return;
     }
+    const key = target.dataset.control;
+    const url = new URL(window.location.href);
+    if (target.type === "checkbox") {
+        if (target.checked) {
+            url.searchParams.set(key, "1");
+        } else {
+            url.searchParams.delete(key);
+        }
+    } else {
+        url.searchParams.set(key, target.value);
+    }
+    window.location.href = url.toString();
 });
 
 // ---- button click -> fly-away animation (intercepts HTMX) ----

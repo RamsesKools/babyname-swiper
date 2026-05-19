@@ -15,7 +15,16 @@ from baby_names_swiper.config import COOKIE_NAME, MAX_UPLOAD_BYTES, USERS
 from baby_names_swiper.db import init_db
 from baby_names_swiper.deps import read_user, sign_user
 from baby_names_swiper.names import list_available_lists, save_upload
-from baby_names_swiper.swipes import DISLIKE, LIKE, next_name, overview, record, undo_last
+from baby_names_swiper.swipes import (
+    DISLIKE,
+    LIKE,
+    MODE_RANDOM,
+    VALID_MODES,
+    next_name,
+    overview,
+    record,
+    undo_last,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -58,6 +67,12 @@ def _resolve_list(slug: str | None) -> str:
             if nl.slug == slug:
                 return slug
     return available[0].slug
+
+
+def _resolve_mode(mode: str | None) -> str:
+    if mode in VALID_MODES:
+        return mode
+    return MODE_RANDOM
 
 
 @app.get("/healthz")
@@ -107,6 +122,8 @@ def logout() -> RedirectResponse:
 def swipe_page(
     request: Request,
     list: str | None = None,  # noqa: A002
+    mode: str | None = None,
+    reswipe: int = 0,
     who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
@@ -114,7 +131,11 @@ def swipe_page(
         return user_or_redirect
     user = user_or_redirect
     list_slug = _resolve_list(list)
-    current_name = next_name(user, list_slug)
+    active_mode = _resolve_mode(mode)
+    reswipe_flag = bool(reswipe)
+    current_name = next_name(
+        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
+    )
     return templates.TemplateResponse(
         request,
         "swipe.html",
@@ -122,28 +143,10 @@ def swipe_page(
             "user": user,
             "lists": list_available_lists(),
             "active_list": list_slug,
+            "active_mode": active_mode,
+            "reswipe": reswipe_flag,
             "current_name": current_name,
         },
-    )
-
-
-@app.get("/swipe/card", response_class=HTMLResponse)
-def swipe_card(
-    request: Request,
-    list: str,  # noqa: A002
-    who: WhoCookie = None,
-) -> HTMLResponse:
-    user_or_redirect = _user_or_redirect(who)
-    if isinstance(user_or_redirect, RedirectResponse):
-        raise HTTPException(status_code=401, detail="No user")
-    user = user_or_redirect
-    list_slug = _resolve_list(list)
-    name = next_name(user, list_slug)
-    template = "_card.html" if name else "_empty.html"
-    return templates.TemplateResponse(
-        request,
-        template,
-        {"name": name, "active_list": list_slug, "user": user},
     )
 
 
@@ -153,6 +156,8 @@ def post_swipe(
     name: Annotated[str, Form()],
     direction: Annotated[int, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
+    mode: Annotated[str | None, Form()] = None,
+    reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
@@ -162,13 +167,23 @@ def post_swipe(
     if direction not in (LIKE, DISLIKE):
         raise HTTPException(status_code=400, detail="bad direction")
     list_slug = _resolve_list(list)
+    active_mode = _resolve_mode(mode)
+    reswipe_flag = bool(reswipe)
     record(user, list_slug, name.strip(), direction)
-    next_one = next_name(user, list_slug)
+    next_one = next_name(
+        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
+    )
     template = "_card.html" if next_one else "_empty.html"
     return templates.TemplateResponse(
         request,
         template,
-        {"name": next_one, "active_list": list_slug, "user": user},
+        {
+            "name": next_one,
+            "active_list": list_slug,
+            "active_mode": active_mode,
+            "reswipe": reswipe_flag,
+            "user": user,
+        },
     )
 
 
@@ -176,6 +191,8 @@ def post_swipe(
 def post_undo(
     request: Request,
     list: Annotated[str, Form(alias="list")],  # noqa: A002
+    mode: Annotated[str | None, Form()] = None,
+    reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
@@ -183,13 +200,23 @@ def post_undo(
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
     list_slug = _resolve_list(list)
+    active_mode = _resolve_mode(mode)
+    reswipe_flag = bool(reswipe)
     restored = undo_last(user, list_slug)
-    name = restored or next_name(user, list_slug)
+    name = restored or next_name(
+        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
+    )
     template = "_card.html" if name else "_empty.html"
     return templates.TemplateResponse(
         request,
         template,
-        {"name": name, "active_list": list_slug, "user": user},
+        {
+            "name": name,
+            "active_list": list_slug,
+            "active_mode": active_mode,
+            "reswipe": reswipe_flag,
+            "user": user,
+        },
     )
 
 

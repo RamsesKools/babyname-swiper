@@ -1,15 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Swipe — {{ active_list }}{% endblock %}
 {% block content %}
-<div class="list-picker">
-    <label for="list-picker">list:</label>
-    <select id="list-picker" name="list">
-        {% for nl in lists %}
-        <option value="{{ nl.slug }}" {% if nl.slug == active_list %}selected{% endif %}>
-            {{ nl.label }}
-        </option>
-        {% endfor %}
-    </select>
+<div class="swipe-controls">
+    <div class="control">
+        <label for="list-picker">list</label>
+        <select id="list-picker" name="list" data-control="list">
+            {% for nl in lists %}
+            <option value="{{ nl.slug }}" {% if nl.slug == active_list %}selected{% endif %}>
+                {{ nl.label }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="control">
+        <label for="mode-picker">mode</label>
+        <select id="mode-picker" name="mode" data-control="mode">
+            <option value="random"        {% if active_mode == 'random' %}selected{% endif %}>random (weighted)</option>
+            <option value="alpha"         {% if active_mode == 'alpha' %}selected{% endif %}>alphabetical</option>
+            <option value="partner_likes" {% if active_mode == 'partner_likes' %}selected{% endif %}>partner likes only</option>
+        </select>
+    </div>
+    <div class="control control-checkbox">
+        <input id="reswipe-toggle"
+               type="checkbox"
+               data-control="reswipe"
+               {% if reswipe %}checked{% endif %}>
+        <label for="reswipe-toggle">reswipe disliked</label>
+    </div>
 </div>
 
 <div class="swiper">
