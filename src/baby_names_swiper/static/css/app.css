@@ -16,7 +16,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
+    padding: 1rem max(1.5rem, calc((100% - 760px) / 2));
     background: var(--c-surface);
     border-bottom: 0.5px solid var(--c-border);
 }
