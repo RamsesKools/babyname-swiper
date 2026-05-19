@@ -1,8 +1,13 @@
 <div id="card" class="swiper-card-wrap">
     {% set name_value = name if name is defined else current_name %}
-    <div class="card">
+    <div class="card"
+         data-card
+         data-name="{{ name_value }}"
+         data-list="{{ active_list }}">
+        <div class="stamp stamp-like">like</div>
+        <div class="stamp stamp-nope">nope</div>
         <div class="name">{{ name_value }}</div>
-        <div class="meta">use the buttons, or ← / → on a keyboard</div>
+        <div class="meta">drag, click the buttons, or use &larr; / &rarr;</div>
     </div>
     <div class="actions">
         <button class="btn btn-nope"

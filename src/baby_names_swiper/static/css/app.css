@@ -2,6 +2,7 @@
 
 body {
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 .page-wrap {
@@ -95,6 +96,7 @@ body {
 }
 
 .card {
+    position: relative;
     width: 100%;
     max-width: 480px;
     background: var(--c-surface);
@@ -103,6 +105,97 @@ body {
     box-shadow: var(--shadow-md);
     padding: 3.5rem 2rem;
     text-align: center;
+    touch-action: pan-y;
+    user-select: none;
+    cursor: grab;
+    will-change: transform, box-shadow;
+    transition: transform 250ms cubic-bezier(.2, .8, .2, 1),
+                box-shadow 200ms ease,
+                opacity 200ms ease;
+}
+
+.card.dragging {
+    cursor: grabbing;
+    transition: none;
+}
+
+.card.glow-like {
+    box-shadow: 0 0 0 2px var(--c-success), 0 8px 30px rgba(112, 174, 110, 0.45);
+}
+
+.card.glow-nope {
+    box-shadow: 0 0 0 2px var(--c-danger), 0 8px 30px rgba(245, 93, 62, 0.45);
+}
+
+.card.fly-right {
+    transform: translateX(140vw) rotate(25deg) !important;
+    opacity: 0;
+    transition: transform 350ms cubic-bezier(.4, 0, .6, 1), opacity 350ms ease;
+}
+
+.card.fly-left {
+    transform: translateX(-140vw) rotate(-25deg) !important;
+    opacity: 0;
+    transition: transform 350ms cubic-bezier(.4, 0, .6, 1), opacity 350ms ease;
+}
+
+.card .stamp {
+    position: absolute;
+    top: 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--r);
+    border: 3px solid currentColor;
+    opacity: 0;
+    transition: opacity 80ms ease;
+    text-transform: uppercase;
+    pointer-events: none;
+}
+
+.card .stamp-like {
+    right: 1.5rem;
+    color: var(--c-success);
+    transform: rotate(-15deg);
+}
+
+.card .stamp-nope {
+    left: 1.5rem;
+    color: var(--c-danger);
+    transform: rotate(15deg);
+}
+
+.swiper-card-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+/* confetti */
+.confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 14px;
+    pointer-events: none;
+    z-index: 9999;
+    will-change: transform, opacity;
+    animation: confetti-fall 900ms cubic-bezier(.2, .8, .4, 1) forwards;
+}
+
+@keyframes confetti-fall {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+    }
 }
 
 .card .name {
