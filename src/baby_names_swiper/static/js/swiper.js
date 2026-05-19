@@ -9,6 +9,7 @@
 
 const SWIPE_THRESHOLD = 110;       // px drag distance to count as a swipe
 const FLY_DURATION_MS = 380;       // matches CSS .fly-* transition + a buffer
+const GLOW_HOLD_MS = 160;          // brief glow flash before the fly-away starts
 
 // ---- helpers ----
 
@@ -42,18 +43,34 @@ function commit(action) {
     });
 }
 
-function flyAndCommit(direction) {
+function flyAndCommit(direction, { skipGlow = false } = {}) {
     const card = findCard();
     if (!card || card.dataset.flying === "1") {
         return;
     }
     card.dataset.flying = "1";
-    card.classList.remove("glow-like", "glow-nope");
-    card.classList.add(direction === "like" ? "fly-right" : "fly-left");
-    if (direction === "like") {
-        burstConfetti(card);
+
+    const flyClass = direction === "like" ? "fly-right" : "fly-left";
+    const glowClass = direction === "like" ? "glow-like" : "glow-nope";
+
+    const launch = () => {
+        card.classList.add(flyClass);
+        if (direction === "like") {
+            burstConfetti(card);
+        }
+        setTimeout(() => commit(direction), FLY_DURATION_MS);
+    };
+
+    if (skipGlow) {
+        card.classList.remove("glow-like", "glow-nope");
+        launch();
+        return;
     }
-    setTimeout(() => commit(direction), FLY_DURATION_MS);
+
+    // make sure only the matching glow is on, then hold briefly before launch
+    card.classList.remove("glow-like", "glow-nope");
+    card.classList.add(glowClass);
+    setTimeout(launch, GLOW_HOLD_MS);
 }
 
 // ---- keyboard shortcuts ----
@@ -167,12 +184,12 @@ function onPointerUp(event) {
 
     if (dx > SWIPE_THRESHOLD) {
         drag = null;
-        flyAndCommit("like");
+        flyAndCommit("like", { skipGlow: true });
         return;
     }
     if (dx < -SWIPE_THRESHOLD) {
         drag = null;
-        flyAndCommit("nope");
+        flyAndCommit("nope", { skipGlow: true });
         return;
     }
     // snap back
