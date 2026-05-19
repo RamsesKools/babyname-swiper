@@ -1,0 +1,21 @@
+services:
+  baby-names-swiper:
+    build: .
+    container_name: baby-names-swiper
+    restart: unless-stopped
+    ports:
+      - "8765:8000"
+    volumes:
+      - swipes-db:/data
+    environment:
+      COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET in .env}
+    # --- Traefik labels, uncomment + adjust to taste -----------------------
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.babynames.rule=Host(`names.yourdomain`)"
+    #   - "traefik.http.routers.babynames.entrypoints=websecure"
+    #   - "traefik.http.routers.babynames.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.babynames.loadbalancer.server.port=8000"
+
+volumes:
+  swipes-db:

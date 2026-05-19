@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Overview — {{ active_list }}{% endblock %}
+{% block content %}
+<div class="list-picker">
+    <label for="list-picker">list:</label>
+    <select id="list-picker" name="list">
+        {% for nl in lists %}
+        <option value="{{ nl.slug }}" {% if nl.slug == active_list %}selected{% endif %}>
+            {{ nl.label }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="stats">
+    <div class="stat">
+        <div class="label">total</div>
+        <div class="value">{{ ov.total }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">swiped</div>
+        <div class="value">{{ ov.swiped }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">remaining</div>
+        <div class="value">{{ ov.remaining }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">matches</div>
+        <div class="value">{{ ov.matches | length }}</div>
+    </div>
+</div>
+
+<section class="overview-section">
+    <h2>Matches <span class="count">({{ ov.matches | length }})</span></h2>
+    {% if ov.matches %}
+    <div class="name-grid">
+        {% for n in ov.matches %}<div class="name-chip match">{{ n }}</div>{% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">No matches yet, keep swiping.</p>
+    {% endif %}
+</section>
+
+<section class="overview-section">
+    <h2>Partner liked (and you haven't yet) <span class="count">({{ ov.partner_likes_only | length }})</span></h2>
+    {% if ov.partner_likes_only %}
+    <div class="name-grid">
+        {% for n in ov.partner_likes_only %}<div class="name-chip">{{ n }}</div>{% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</section>
+
+<section class="overview-section">
+    <h2>Your likes <span class="count">({{ ov.my_likes | length }})</span></h2>
+    {% if ov.my_likes %}
+    <div class="name-grid">
+        {% for n in ov.my_likes %}<div class="name-chip">{{ n }}</div>{% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</section>
+
+<section class="overview-section">
+    <h2>Your dislikes <span class="count">({{ ov.my_dislikes | length }})</span></h2>
+    {% if ov.my_dislikes %}
+    <div class="name-grid">
+        {% for n in ov.my_dislikes %}<div class="name-chip dislike">{{ n }}</div>{% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

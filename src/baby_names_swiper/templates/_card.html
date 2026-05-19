@@ -1,0 +1,35 @@
+<div id="card" class="swiper-card-wrap">
+    {% set name_value = name if name is defined else current_name %}
+    <div class="card">
+        <div class="name">{{ name_value }}</div>
+        <div class="meta">use the buttons, or ← / → on a keyboard</div>
+    </div>
+    <div class="actions">
+        <button class="btn btn-nope"
+                data-action="nope"
+                hx-post="/swipe"
+                hx-target="#card"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ name_value }}", "direction": 0, "list": "{{ active_list }}"}'>
+            nope
+        </button>
+        <button class="btn btn-like"
+                data-action="like"
+                hx-post="/swipe"
+                hx-target="#card"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ name_value }}", "direction": 1, "list": "{{ active_list }}"}'>
+            like
+        </button>
+    </div>
+    <div class="undo-row">
+        <button class="btn btn-undo"
+                data-action="undo"
+                hx-post="/swipe/undo"
+                hx-target="#card"
+                hx-swap="outerHTML"
+                hx-vals='{"list": "{{ active_list }}"}'>
+            undo last
+        </button>
+    </div>
+</div>

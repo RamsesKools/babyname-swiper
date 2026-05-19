@@ -1,0 +1,18 @@
+<div id="card" class="swiper-card-wrap">
+    <div class="card-empty">
+        <p>You've swiped them all in this list.</p>
+        <p style="margin-top: 0.75rem;">
+            <a href="/overview?list={{ active_list }}">See your overview &rarr;</a>
+        </p>
+    </div>
+    <div class="undo-row">
+        <button class="btn btn-undo"
+                data-action="undo"
+                hx-post="/swipe/undo"
+                hx-target="#card"
+                hx-swap="outerHTML"
+                hx-vals='{"list": "{{ active_list }}"}'>
+            undo last
+        </button>
+    </div>
+</div>

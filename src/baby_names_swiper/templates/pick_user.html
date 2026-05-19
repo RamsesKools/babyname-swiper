@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Who are you?{% endblock %}
+{% block content %}
+<div class="pick-user">
+    <h1>Who's swiping?</h1>
+    <p>Pick yourself, your swipes get tied to that name.</p>
+    <div class="users">
+        {% for u in users %}
+        <form method="post" action="/who">
+            <input type="hidden" name="user" value="{{ u }}">
+            <button type="submit">{{ u }}</button>
+        </form>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

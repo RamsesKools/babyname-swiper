@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Upload list{% endblock %}
+{% block content %}
+<div class="upload-card">
+    <h1>Upload a custom name list</h1>
+    <p>Plain UTF-8 CSV, one name per line. Max 1 MiB, 5000 names, 50 chars per name.</p>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="post" action="/upload" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".csv,.txt,text/csv,text/plain" required>
+        <button class="submit" type="submit">upload</button>
+    </form>
+</div>
+{% endblock %}

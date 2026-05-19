@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Baby Names Swiper{% endblock %}</title>
+    <link rel="icon" href="/static/logos/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/css/my-design.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="https://unpkg.com/htmx.org@2.0.3" defer></script>
+    <script src="/static/js/swiper.js" defer></script>
+</head>
+<body>
+    {% include "_header.html" %}
+    <main class="page-wrap">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

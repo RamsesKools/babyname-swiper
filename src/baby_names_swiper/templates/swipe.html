@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Swipe — {{ active_list }}{% endblock %}
+{% block content %}
+<div class="list-picker">
+    <label for="list-picker">list:</label>
+    <select id="list-picker" name="list">
+        {% for nl in lists %}
+        <option value="{{ nl.slug }}" {% if nl.slug == active_list %}selected{% endif %}>
+            {{ nl.label }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="swiper">
+    {% if current_name %}
+    {% include "_card.html" with context %}
+    {% else %}
+    {% with name=None %}
+    {% include "_empty.html" %}
+    {% endwith %}
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,391 @@
+/* baby-names-swiper specific overrides on top of my-design.css */
+
+body {
+    min-height: 100vh;
+}
+
+.page-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* --- top bar / header --- */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: var(--c-surface);
+    border-bottom: 0.5px solid var(--c-border);
+}
+
+.topbar .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+    color: var(--c-text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.topbar .brand img {
+    height: 28px;
+    width: 28px;
+}
+
+.topbar nav {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.topbar nav a {
+    color: var(--c-text-secondary);
+    text-decoration: none;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--r);
+    transition: color 150ms ease, background-color 150ms ease;
+}
+
+.topbar nav a:hover,
+.topbar nav a.active {
+    color: var(--c-blue);
+    background: var(--c-blue-light);
+}
+
+.topbar .who {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--c-text-muted);
+}
+
+/* --- list picker --- */
+.list-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--c-text-secondary);
+}
+
+.list-picker select {
+    font-family: var(--font);
+    font-size: 15px;
+    padding: 0.5rem 0.75rem;
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-text);
+}
+
+/* --- swipe card --- */
+.swiper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+.card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-md);
+    padding: 3.5rem 2rem;
+    text-align: center;
+}
+
+.card .name {
+    font-family: var(--font);
+    font-size: 3rem;
+    font-weight: 500;
+    color: var(--c-text);
+    line-height: 1.2;
+    word-break: break-word;
+}
+
+.card .meta {
+    margin-top: 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--c-text-muted);
+    letter-spacing: 0.02em;
+}
+
+.card-empty {
+    width: 100%;
+    max-width: 480px;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-sm);
+    padding: 3rem 2rem;
+    text-align: center;
+    color: var(--c-text-secondary);
+}
+
+.card-empty a {
+    color: var(--c-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.actions {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    max-width: 480px;
+}
+
+.btn {
+    flex: 1;
+    padding: 1rem;
+    border-radius: var(--r);
+    border: 0.5px solid transparent;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 150ms ease, transform 100ms ease, background-color 150ms ease;
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.btn:hover {
+    filter: brightness(0.95);
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-nope {
+    background: var(--c-danger);
+    color: white;
+}
+
+.btn-like {
+    background: var(--c-success);
+    color: white;
+}
+
+.btn-undo {
+    background: transparent;
+    color: var(--c-text-secondary);
+    border-color: var(--c-border-strong);
+    font-size: 12px;
+    padding: 0.6rem 1rem;
+    flex: 0 0 auto;
+}
+
+.btn-undo:hover {
+    color: var(--c-text);
+    border-color: var(--c-text);
+}
+
+.undo-row {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    max-width: 480px;
+}
+
+/* --- overview --- */
+.stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.stat {
+    flex: 1;
+    min-width: 120px;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    padding: 1rem 1.25rem;
+}
+
+.stat .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--c-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.stat .value {
+    margin-top: 0.25rem;
+    font-size: 1.75rem;
+    font-weight: 500;
+    color: var(--c-text);
+}
+
+.overview-section {
+    margin-bottom: 2rem;
+}
+
+.overview-section h2 {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--c-text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.overview-section .count {
+    color: var(--c-text-muted);
+    font-weight: 400;
+    margin-left: 0.5rem;
+}
+
+.name-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.5rem;
+}
+
+.name-chip {
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    padding: 0.6rem 0.85rem;
+    font-size: 15px;
+    color: var(--c-text);
+}
+
+.name-chip.match {
+    background: var(--c-success-light);
+    border-color: var(--c-green-border);
+    color: var(--c-green-text);
+    font-weight: 500;
+}
+
+.name-chip.dislike {
+    color: var(--c-text-muted);
+    text-decoration: line-through;
+}
+
+.empty-note {
+    color: var(--c-text-muted);
+    font-style: italic;
+    font-size: 14px;
+}
+
+/* --- pick user --- */
+.pick-user {
+    max-width: 480px;
+    margin: 4rem auto;
+    text-align: center;
+}
+
+.pick-user h1 {
+    font-size: 2rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.pick-user p {
+    color: var(--c-text-secondary);
+    margin-bottom: 2rem;
+}
+
+.pick-user .users {
+    display: flex;
+    gap: 1rem;
+}
+
+.pick-user form {
+    flex: 1;
+}
+
+.pick-user button {
+    width: 100%;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    padding: 1.5rem;
+    font-family: var(--font);
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--c-text);
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pick-user button:hover {
+    background: var(--c-blue-light);
+    border-color: var(--c-blue);
+    color: var(--c-blue);
+}
+
+/* --- upload --- */
+.upload-card {
+    max-width: 480px;
+    margin: 2rem auto;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    padding: 2rem;
+}
+
+.upload-card h1 {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.upload-card p {
+    color: var(--c-text-secondary);
+    font-size: 14px;
+    margin-bottom: 1.5rem;
+}
+
+.upload-card input[type="file"] {
+    display: block;
+    margin-bottom: 1rem;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.upload-card .submit {
+    background: var(--c-blue);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: var(--r);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+}
+
+.upload-card .submit:hover {
+    background: var(--c-blue-hover);
+}
+
+.upload-card .error {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--c-danger-light);
+    border: 0.5px solid var(--c-danger);
+    border-radius: var(--r);
+    color: var(--c-danger-text);
+    font-size: 14px;
+}
