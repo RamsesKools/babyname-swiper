@@ -26,4 +26,4 @@ def _isolate_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
 
     monkeypatch.setattr(names_mod, "NAMES_DIR", names_dir)
     monkeypatch.setattr(names_mod, "UPLOAD_DIR", uploads_dir)
-    yield
+    yield  # noqa: PT022

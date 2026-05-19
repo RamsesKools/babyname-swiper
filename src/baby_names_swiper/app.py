@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Cookie, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -14,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from baby_names_swiper.config import COOKIE_NAME, MAX_UPLOAD_BYTES, USERS
 from baby_names_swiper.db import init_db
 from baby_names_swiper.deps import read_user, sign_user
-from baby_names_swiper.names import get_list, list_available_lists, save_upload
+from baby_names_swiper.names import list_available_lists, save_upload
 from baby_names_swiper.swipes import DISLIKE, LIKE, next_name, overview, record, undo_last
 
 if TYPE_CHECKING:
@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 _PKG_DIR = Path(__file__).resolve().parent
 _STATIC_DIR = _PKG_DIR / "static"
 _TEMPLATES_DIR = _PKG_DIR / "templates"
+
+WhoCookie = Annotated[str | None, Cookie(alias=COOKIE_NAME)]
 
 
 @asynccontextmanager
@@ -64,7 +66,7 @@ def healthz() -> JSONResponse:
 
 
 @app.get("/", include_in_schema=False)
-def root(who: str | None = Cookie(default=None)) -> RedirectResponse:  # noqa: B008
+def root(who: WhoCookie = None) -> RedirectResponse:
     if read_user(who) is None:
         return RedirectResponse(url="/who", status_code=303)
     return RedirectResponse(url="/swipe", status_code=303)
@@ -80,7 +82,7 @@ def pick_user_page(request: Request) -> HTMLResponse:
 
 
 @app.post("/who")
-def set_user(user: str = Form(...)) -> RedirectResponse:
+def set_user(user: Annotated[str, Form()]) -> RedirectResponse:
     if user not in USERS:
         raise HTTPException(status_code=400, detail="Unknown user")
     response = RedirectResponse(url="/swipe", status_code=303)
@@ -105,7 +107,7 @@ def logout() -> RedirectResponse:
 def swipe_page(
     request: Request,
     list: str | None = None,  # noqa: A002
-    who: str | None = Cookie(default=None),  # noqa: B008
+    who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -129,7 +131,7 @@ def swipe_page(
 def swipe_card(
     request: Request,
     list: str,  # noqa: A002
-    who: str | None = Cookie(default=None),  # noqa: B008
+    who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -148,10 +150,10 @@ def swipe_card(
 @app.post("/swipe", response_class=HTMLResponse)
 def post_swipe(
     request: Request,
-    name: str = Form(...),
-    direction: int = Form(...),
-    list: str = Form(...),  # noqa: A002
-    who: str | None = Cookie(default=None),  # noqa: B008
+    name: Annotated[str, Form()],
+    direction: Annotated[int, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -173,8 +175,8 @@ def post_swipe(
 @app.post("/swipe/undo", response_class=HTMLResponse)
 def post_undo(
     request: Request,
-    list: str = Form(...),  # noqa: A002
-    who: str | None = Cookie(default=None),  # noqa: B008
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -182,7 +184,7 @@ def post_undo(
     user = user_or_redirect
     list_slug = _resolve_list(list)
     restored = undo_last(user, list_slug)
-    name = restored if restored else next_name(user, list_slug)
+    name = restored or next_name(user, list_slug)
     template = "_card.html" if name else "_empty.html"
     return templates.TemplateResponse(
         request,
@@ -195,7 +197,7 @@ def post_undo(
 def overview_page(
     request: Request,
     list: str | None = None,  # noqa: A002
-    who: str | None = Cookie(default=None),  # noqa: B008
+    who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -218,7 +220,7 @@ def overview_page(
 @app.get("/upload", response_class=HTMLResponse)
 def upload_page(
     request: Request,
-    who: str | None = Cookie(default=None),  # noqa: B008
+    who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -234,7 +236,7 @@ def upload_page(
 async def post_upload(
     request: Request,
     file: UploadFile,
-    who: str | None = Cookie(default=None),  # noqa: B008
+    who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):

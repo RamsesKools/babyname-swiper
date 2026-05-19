@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import Cookie, HTTPException, status
 from itsdangerous import BadSignature, URLSafeSerializer
 
-from baby_names_swiper.config import COOKIE_NAME, COOKIE_SECRET, USERS
+from baby_names_swiper.config import COOKIE_SECRET, USERS
 
 _serializer = URLSafeSerializer(COOKIE_SECRET, salt="who")
 
@@ -26,7 +26,7 @@ def read_user(token: str | None) -> str | None:
     return value
 
 
-def current_user(who: str | None = Cookie(default=None)) -> str:  # noqa: B008
+def current_user(who: str | None = Cookie(default=None)) -> str:
     """Return the cookie-authenticated user, or 401 if missing."""
     user = read_user(who)
     if user is None:

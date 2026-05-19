@@ -40,8 +40,8 @@ def test_overview_matches_and_partner_likes():
     record("Ramses", "boys", "Aaron", LIKE)
     record("Ramses", "boys", "Bram", LIKE)
     record("Ramses", "boys", "Cas", DISLIKE)
-    record("Chiara", "boys", "Aaron", LIKE)   # match
-    record("Chiara", "boys", "Dex", LIKE)     # partner only
+    record("Chiara", "boys", "Aaron", LIKE)  # match
+    record("Chiara", "boys", "Dex", LIKE)  # partner only
 
     ov = overview("Ramses", "boys")
     assert ov.matches == ["Aaron"]

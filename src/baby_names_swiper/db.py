@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from pathlib import Path
 import sqlite3
 import threading
 from typing import TYPE_CHECKING
@@ -12,6 +11,7 @@ from baby_names_swiper.config import DB_PATH
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS swipes (

@@ -47,7 +47,12 @@ def list_available_lists() -> list[NameList]:
         for path in sorted(UPLOAD_DIR.glob("*.csv")):
             slug = f"upload_{path.stem}"
             lists.append(
-                NameList(slug=slug, label=_label_for(path.stem, "upload"), path=path, source="upload")
+                NameList(
+                    slug=slug,
+                    label=_label_for(path.stem, "upload"),
+                    path=path,
+                    source="upload",
+                )
             )
     return lists
 
