@@ -1,0 +1,116 @@
+[project]
+authors = [
+  {name = "Ramses Kools", email = "ramseskools1@gmail.com"},
+]
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "jinja2>=3.1.4",
+  "python-multipart>=0.0.12",
+  "itsdangerous>=2.2.0",
+  "python-dotenv>=1.0.1",
+  "httpx>=0.27.2",
+  "beautifulsoup4>=4.12.3",
+]
+description = "Tiny two-user Tinder-style web app for picking baby names together."
+name = "baby-names-swiper"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.13.13"
+version = "0.1.0"
+
+[build-system]
+build-backend = "uv_build"
+requires = ["uv_build>=0.8.12,<0.9.0"]
+
+[tool.uv.build-backend]
+module-name = "baby_names_swiper"
+module-root = "src"
+
+[dependency-groups]
+dev = [
+  "hypothesis>=6.138.15",
+  "mypy>=1.17.1",
+  "pre-commit>=4.3.0",
+  "pytest>=8.4.2",
+  "pytest-cov>=7.0.0",
+  "ruff>=0.12.12",
+  "taskipy>=1.14.1",
+  "python-kacl>=0.6.8",
+]
+
+# ---------------------------------------------------------------------------- #
+#                                    pytest                                    #
+# ---------------------------------------------------------------------------- #
+
+[tool.pytest.ini_options]
+addopts = """
+--tb=long
+--code-highlight=yes
+--color=yes
+"""
+log_file = "./logs/pytest.log"
+markers = [
+  'slow: marks tests as slow (deselect with `-m "not slow"`)',
+]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+  'pragma: no cover',
+  'raise NotImplementedError',
+  '\.\.\.',
+]
+fail_under = 60
+
+[tool.coverage.html]
+directory = './coverage'
+
+[tool.coverage.xml]
+output = './coverage/cov.xml'
+
+# ---------------------------------------------------------------------------- #
+#                                     mypy                                     #
+# ---------------------------------------------------------------------------- #
+
+[tool.mypy]
+explicit_package_bases = true
+mypy_path = "src"
+strict = true
+
+[[tool.mypy.overrides]]
+check_untyped_defs = true
+disallow_incomplete_defs = false
+disallow_untyped_defs = false
+module = "tests.*"
+
+[[tool.mypy.overrides]]
+ignore_missing_imports = true
+module = [
+  "bs4.*",
+]
+
+# ---------------------------------------------------------------------------- #
+#                                   taskipy                                    #
+# ---------------------------------------------------------------------------- #
+
+[tool.taskipy.settings]
+use_vars = true
+
+[tool.taskipy.variables]
+coverage_module = "baby_names_swiper"
+module_path = "src/baby_names_swiper"
+
+[tool.taskipy.tasks]
+all = "task format && task check && task test && task clean"
+all_check_test = "task check && task test"
+check = "task check_mypy && task check_ruff"
+check_mypy = "mypy {module_path} tests --pretty --install-types --non-interactive"
+check_ruff = "ruff check {module_path} tests scripts"
+clean = "rm -rf .coverage .hypothesis .mypy_cache .pytest_cache *.egg-info dist coverage.xml python_test_report.xml .ruff_cache logs && find . -type d -name __pycache__ -exec rm -rf {{}} + 2>/dev/null || true"
+dev = "uvicorn baby_names_swiper.app:app --reload --port 8000"
+format = "ruff format {module_path} tests scripts"
+scrape = "python scripts/scrape_studiopoppy.py"
+test = "pytest --cov={coverage_module} --junitxml=python_test_report.xml --basetemp=./tests/.tmp --cov-report=xml"

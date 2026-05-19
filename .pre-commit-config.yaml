@@ -1,0 +1,52 @@
+exclude: |
+  (?x)^(
+      .*cache.*/.*|
+      .*venv.*/.*|
+      src/baby_names_swiper/static/fonts/.*|
+      src/baby_names_swiper/static/css/my-design.css|
+      data/names/.*\.csv|
+  )$
+default_language_version:
+  python: python3.13
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+        name: "security - Detect hardcoded secrets"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff-format
+        name: "python - Format with Ruff"
+      - id: ruff
+        name: "python - Check with Ruff"
+        args: [--fix]
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.24.1
+    hooks:
+      - id: validate-pyproject
+        name: "python - Validate pyproject.toml"
+        additional_dependencies: ["validate-pyproject-schema-store[all]"]
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.2
+    hooks:
+      - id: uv-sync
+        name: "uv - Sync dependencies"
+      - id: uv-lock
+        name: "uv - Update lockfile"
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-ast
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+      - id: check-toml
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main]
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
