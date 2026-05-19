@@ -7,7 +7,7 @@ Ramses and Chiara swipe LIKE or NOT on names, and an overview screen surfaces th
 
 ```bash
 uv sync
-uv run task scrape          # one-shot, fetches names from studiopoppy.nl into data/names/
+uv run task scrape # one-shot, fetches names from studiopoppy.nl into data/names/
 COOKIE_SECRET=dev uv run task dev
 open http://localhost:8000
 ```
@@ -15,11 +15,11 @@ open http://localhost:8000
 ## Tasks
 
 ```bash
-uv run task dev        # uvicorn on :8000 with reload
-uv run task scrape     # run the studiopoppy.nl scraper
-uv run task format     # ruff format
-uv run task check      # ruff check + mypy
-uv run task test       # pytest with coverage
+uv run task dev    # uvicorn on :8000 with reload
+uv run task scrape # run the studiopoppy.nl scraper
+uv run task format # ruff format
+uv run task check  # ruff check + mypy
+uv run task test   # pytest with coverage
 ```
 
 ## Docker
@@ -51,6 +51,17 @@ labels:
   - "traefik.http.routers.babynames.rule=Host(`names.yourdomain`)"
   - "traefik.http.services.babynames.loadbalancer.server.port=8000"
 ```
+
+### COOKIE_SECRET
+
+A random server-side string used to sign the cookie that identifies which user you are.
+Without it, anyone could set `who=Ramses` in dev tools and impersonate you.
+It is not encryption (the user name is still readable in the cookie) and not a password,
+just an anti-tampering key.
+
+- Dev: any value works, a default is baked in so `uv run task dev` runs without `.env`.
+- Prod: generate with `openssl rand -hex 32` and keep it stable across restarts.
+- Rotating it invalidates existing cookies, both users have to re-pick on `/who` (swipe history is unaffected).
 
 ## Bring your own list
 
