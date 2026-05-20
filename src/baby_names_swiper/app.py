@@ -23,6 +23,8 @@ from baby_names_swiper.swipes import (
     get_deck,
     overview,
     record,
+    remove_swipe,
+    reset_list,
     undo_last,
 )
 
@@ -258,7 +260,6 @@ def overview_page(
         return user_or_redirect
     user = user_or_redirect
     list_slug = _resolve_list(list)
-    data = overview(user, list_slug)
     return templates.TemplateResponse(
         request,
         "overview.html",
@@ -266,8 +267,51 @@ def overview_page(
             "user": user,
             "lists": list_available_lists(),
             "active_list": list_slug,
-            "ov": data,
+            "ov": overview(user, list_slug),
         },
+    )
+
+
+@app.post("/overview/remove", response_class=HTMLResponse)
+def overview_remove(
+    request: Request,
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    """Remove one of the current user's own swipes, return the refreshed body."""
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slug = _resolve_list(list)
+    # the DELETE is scoped to `user` (the cookie identity), so a user can
+    # only ever remove their own swipes
+    remove_swipe(user, list_slug, name.strip())
+    return templates.TemplateResponse(
+        request,
+        "_overview_body.html",
+        {"user": user, "active_list": list_slug, "ov": overview(user, list_slug)},
+    )
+
+
+@app.post("/overview/reset", response_class=HTMLResponse)
+def overview_reset(
+    request: Request,
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    """Wipe all of the current user's swipes for a list, return refreshed body."""
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slug = _resolve_list(list)
+    reset_list(user, list_slug)
+    return templates.TemplateResponse(
+        request,
+        "_overview_body.html",
+        {"user": user, "active_list": list_slug, "ov": overview(user, list_slug)},
     )
 
 

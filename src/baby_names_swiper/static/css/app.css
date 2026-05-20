@@ -476,6 +476,7 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     text-decoration: none;
+    cursor: pointer;
     transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
@@ -493,6 +494,25 @@ body {
     color: white;
 }
 
+/* destructive variant: reset list */
+.summary-action.danger {
+    color: var(--c-danger);
+}
+
+.summary-action.danger:hover {
+    background: var(--c-danger);
+    color: white;
+    border-color: var(--c-danger);
+}
+
+.overview-section > summary:hover .summary-action.danger {
+    color: var(--c-danger);
+}
+
+.overview-section > summary:hover .summary-action.danger:hover {
+    color: white;
+}
+
 .name-list {
     list-style: none;
     padding: 0.25rem 0 0.5rem;
@@ -501,6 +521,10 @@ body {
 }
 
 .name-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     padding: 0.55rem 1.1rem;
     font-size: 15px;
     color: var(--c-text);
@@ -517,9 +541,30 @@ body {
     font-weight: 500;
 }
 
-.name-row.dislike {
+.name-row.dislike > span {
     color: var(--c-text-muted);
     text-decoration: line-through;
+}
+
+.row-remove {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    padding: 0;
+    border: 0.5px solid var(--c-border);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-text-muted);
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.row-remove:hover {
+    background: var(--c-danger);
+    border-color: var(--c-danger);
+    color: white;
 }
 
 .overview-section .empty-note {

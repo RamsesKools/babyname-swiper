@@ -272,6 +272,42 @@ def reset_decks() -> None:
     _decks.clear()
 
 
+def _invalidate_decks(user: str, list_slug: str) -> None:
+    """Drop cached decks for one user+list so a rebuilt deck picks up changes.
+
+    Called after a swipe is removed/reset: the freed-up names must be able to
+    re-enter the deck's pool, which only happens on a fresh build.
+    """
+    stale = [key for key in _decks if key[0] == user and key[1] == list_slug]
+    for key in stale:
+        del _decks[key]
+
+
+def remove_swipe(user: str, list_slug: str, name: str) -> bool:
+    """Delete a single swipe for this user. Returns True if a row was removed."""
+    with cursor() as cur:
+        cur.execute(
+            "DELETE FROM swipes WHERE user = ? AND list_slug = ? AND name = ?",
+            (user, list_slug, name),
+        )
+        removed = cur.rowcount > 0
+    if removed:
+        _invalidate_decks(user, list_slug)
+    return removed
+
+
+def reset_list(user: str, list_slug: str) -> int:
+    """Delete all of this user's swipes for a list. Returns the count removed."""
+    with cursor() as cur:
+        cur.execute(
+            "DELETE FROM swipes WHERE user = ? AND list_slug = ?",
+            (user, list_slug),
+        )
+        count = cur.rowcount
+    _invalidate_decks(user, list_slug)
+    return count
+
+
 # --------------------------------------------------------------------------- #
 #                                  overview                                   #
 # --------------------------------------------------------------------------- #

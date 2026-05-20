@@ -12,7 +12,9 @@ from baby_names_swiper.swipes import (
     get_deck,
     overview,
     record,
+    remove_swipe,
     reset_decks,
+    reset_list,
     undo_last,
 )
 
@@ -56,6 +58,78 @@ def test_record_upsert_overrides_direction():
 def test_undo_last_returns_none_with_no_history():
     _seed_list("boys", ["Aaron"])
     assert undo_last("Ramses", "boys") is None
+
+
+# --------------------------------------------------------------------------- #
+#                          remove single / reset list                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_remove_swipe_deletes_one_and_reports_true():
+    _seed_list("boys", ["Aaron", "Bram"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    record("Ramses", "boys", "Bram", DISLIKE)
+    assert remove_swipe("Ramses", "boys", "Aaron") is True
+    ov = overview("Ramses", "boys")
+    assert ov.my_likes == []
+    assert ov.my_dislikes == ["Bram"]
+
+
+def test_remove_swipe_missing_name_reports_false():
+    _seed_list("boys", ["Aaron"])
+    assert remove_swipe("Ramses", "boys", "Aaron") is False
+
+
+def test_remove_swipe_only_touches_that_users_rows():
+    _seed_list("boys", ["Aaron"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    record("Chiara", "boys", "Aaron", LIKE)
+    remove_swipe("Ramses", "boys", "Aaron")
+    assert overview("Ramses", "boys").my_likes == []
+    # partner's swipe is untouched
+    assert overview("Chiara", "boys").my_likes == ["Aaron"]
+
+
+def test_removed_name_reenters_the_deck():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    deck = get_deck("Ramses", "boys", mode=MODE_ALPHA)
+    assert "Aaron" not in deck.names  # excluded while swiped
+    remove_swipe("Ramses", "boys", "Aaron")
+    deck = get_deck("Ramses", "boys", mode=MODE_ALPHA)
+    assert "Aaron" in deck.names  # back in the pool after removal
+
+
+def test_reset_list_clears_all_of_users_swipes():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    record("Ramses", "boys", "Bram", DISLIKE)
+    record("Ramses", "boys", "Cas", LIKE)
+    removed = reset_list("Ramses", "boys")
+    assert removed == 3
+    ov = overview("Ramses", "boys")
+    assert ov.my_likes == []
+    assert ov.my_dislikes == []
+    assert ov.swiped == 0
+
+
+def test_reset_list_only_touches_that_user_and_list():
+    _seed_list("boys", ["Aaron"])
+    _seed_list("girls", ["Anna"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    record("Ramses", "girls", "Anna", LIKE)
+    record("Chiara", "boys", "Aaron", LIKE)
+    reset_list("Ramses", "boys")
+    assert overview("Ramses", "boys").my_likes == []
+    # other list untouched
+    assert overview("Ramses", "girls").my_likes == ["Anna"]
+    # partner untouched
+    assert overview("Chiara", "boys").my_likes == ["Aaron"]
+
+
+def test_reset_list_returns_zero_when_nothing_to_clear():
+    _seed_list("boys", ["Aaron"])
+    assert reset_list("Ramses", "boys") == 0
 
 
 # --------------------------------------------------------------------------- #

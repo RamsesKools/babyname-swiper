@@ -1,0 +1,128 @@
+<div class="stats">
+    <div class="stat">
+        <div class="label">total</div>
+        <div class="value">{{ ov.total }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">swiped</div>
+        <div class="value">{{ ov.swiped }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">remaining</div>
+        <div class="value">{{ ov.remaining }}</div>
+    </div>
+    <div class="stat">
+        <div class="label">matches</div>
+        <div class="value">{{ ov.matches | length }}</div>
+    </div>
+</div>
+
+<details class="overview-section">
+    <summary>Matches <span class="count">({{ ov.matches | length }})</span></summary>
+    {% if ov.matches %}
+    <ul class="name-list">
+        {% for n in ov.matches %}<li class="name-row match">{{ n }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-note">No matches yet, keep swiping.</p>
+    {% endif %}
+</details>
+
+<details class="overview-section">
+    <summary>
+        <span>Partner liked (and you haven't yet)</span>
+        <span class="count">({{ ov.partner_likes_only | length }})</span>
+        {% if ov.partner_likes_only %}
+        <a class="summary-action"
+           href="/swipe?list={{ active_list }}&mode=partner_likes"
+           onclick="event.stopPropagation()">
+            swipe partner likes &rarr;
+        </a>
+        {% endif %}
+    </summary>
+    {% if ov.partner_likes_only %}
+    <ul class="name-list">
+        {% for n in ov.partner_likes_only %}<li class="name-row">{{ n }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</details>
+
+<details class="overview-section" open>
+    <summary>
+        <span>Your likes</span>
+        <span class="count">({{ ov.my_likes | length }})</span>
+        {% if ov.my_likes %}
+        <button class="summary-action danger"
+                type="button"
+                hx-post="/overview/reset"
+                hx-target="#overview-body"
+                hx-swap="innerHTML"
+                hx-vals='{"list": "{{ active_list }}"}'
+                hx-confirm="Undo all your likes AND dislikes for this list? This cannot be undone."
+                onclick="event.stopPropagation()">
+            reset list
+        </button>
+        {% endif %}
+    </summary>
+    {% if ov.my_likes %}
+    <ul class="name-list">
+        {% for n in ov.my_likes %}
+        <li class="name-row">
+            <span>{{ n }}</span>
+            <button class="row-remove"
+                    type="button"
+                    title="Remove {{ n }}"
+                    hx-post="/overview/remove"
+                    hx-target="#overview-body"
+                    hx-swap="innerHTML"
+                    hx-vals='{"name": "{{ n }}", "list": "{{ active_list }}"}'>
+                &times;
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</details>
+
+<details class="overview-section">
+    <summary>
+        <span>Your dislikes</span>
+        <span class="count">({{ ov.my_dislikes | length }})</span>
+        {% if ov.my_dislikes %}
+        <button class="summary-action danger"
+                type="button"
+                hx-post="/overview/reset"
+                hx-target="#overview-body"
+                hx-swap="innerHTML"
+                hx-vals='{"list": "{{ active_list }}"}'
+                hx-confirm="Undo all your likes AND dislikes for this list? This cannot be undone."
+                onclick="event.stopPropagation()">
+            reset list
+        </button>
+        {% endif %}
+    </summary>
+    {% if ov.my_dislikes %}
+    <ul class="name-list">
+        {% for n in ov.my_dislikes %}
+        <li class="name-row dislike">
+            <span>{{ n }}</span>
+            <button class="row-remove"
+                    type="button"
+                    title="Remove {{ n }}"
+                    hx-post="/overview/remove"
+                    hx-target="#overview-body"
+                    hx-swap="innerHTML"
+                    hx-vals='{"name": "{{ n }}", "list": "{{ active_list }}"}'>
+                &times;
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty-note">Nothing here yet.</p>
+    {% endif %}
+</details>
