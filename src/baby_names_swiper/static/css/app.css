@@ -33,8 +33,9 @@ body {
 }
 
 .topbar .brand img {
-    height: 28px;
-    width: 28px;
+    height: 26px;
+    width: auto;
+    display: block;
 }
 
 .topbar nav {
