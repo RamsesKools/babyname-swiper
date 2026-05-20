@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from baby_names_swiper import config, db
+from baby_names_swiper import config, db, swipes
 
 
 @pytest.fixture(autouse=True)
@@ -26,4 +26,5 @@ def _isolate_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
 
     monkeypatch.setattr(names_mod, "NAMES_DIR", names_dir)
     monkeypatch.setattr(names_mod, "UPLOAD_DIR", uploads_dir)
+    swipes.reset_decks()
     yield  # noqa: PT022

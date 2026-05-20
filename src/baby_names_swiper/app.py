@@ -20,8 +20,7 @@ from baby_names_swiper.swipes import (
     LIKE,
     MODE_RANDOM,
     VALID_MODES,
-    next_name,
-    next_two,
+    get_deck,
     overview,
     record,
     undo_last,
@@ -153,12 +152,7 @@ def swipe_page(
     list_slug = _resolve_list(list)
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
-    current, lookahead = next_two(
-        user,
-        list_slug,
-        mode=active_mode,
-        reswipe_disliked=reswipe_flag,
-    )
+    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
     ctx: dict[str, object] = {
         "lists": list_available_lists(),
         **_deck_context(
@@ -166,8 +160,8 @@ def swipe_page(
             list_slug=list_slug,
             active_mode=active_mode,
             reswipe_flag=reswipe_flag,
-            current=current,
-            lookahead=lookahead,
+            current=deck.current(),
+            lookahead=deck.lookahead(),
         ),
     }
     return templates.TemplateResponse(request, "swipe.html", ctx)
@@ -179,15 +173,16 @@ def post_swipe(
     name: Annotated[str, Form()],
     direction: Annotated[int, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
-    showing: Annotated[str, Form()] = "",
     mode: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
-    """Record a swipe and return only the *next* lookahead card.
+    """Record a swipe and return the next lookahead card.
 
-    `showing` is the name the client just promoted to the active slot; it is
-    excluded from the lookahead so the deck never shows the same name twice.
+    The deck has a fixed order. Recording the swipe and re-fetching the deck
+    makes get_deck's reconcile step move the cursor past the just-swiped name,
+    so deck.current() is what the client just promoted and deck.lookahead()
+    is the fresh card to send back.
     """
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -198,16 +193,11 @@ def post_swipe(
     list_slug = _resolve_list(list)
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
-    record(user, list_slug, name.strip(), direction)
 
-    exclude = {showing.strip()} if showing.strip() else None
-    lookahead = next_name(
-        user,
-        list_slug,
-        mode=active_mode,
-        reswipe_disliked=reswipe_flag,
-        exclude=exclude,
-    )
+    record(user, list_slug, name.strip(), direction)
+    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
+
+    lookahead = deck.lookahead()
     template = "_card_next.html" if lookahead else "_card_next_empty.html"
     return templates.TemplateResponse(
         request,
@@ -217,7 +207,7 @@ def post_swipe(
             list_slug=list_slug,
             active_mode=active_mode,
             reswipe_flag=reswipe_flag,
-            current=showing.strip() or None,
+            current=deck.current(),
             lookahead=lookahead,
         ),
     )
@@ -238,23 +228,11 @@ def post_undo(
     list_slug = _resolve_list(list)
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
+
     restored = undo_last(user, list_slug)
+    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
     if restored:
-        lookahead = next_name(
-            user,
-            list_slug,
-            mode=active_mode,
-            reswipe_disliked=reswipe_flag,
-            exclude={restored},
-        )
-        current: str | None = restored
-    else:
-        current, lookahead = next_two(
-            user,
-            list_slug,
-            mode=active_mode,
-            reswipe_disliked=reswipe_flag,
-        )
+        deck.rewind()
     return templates.TemplateResponse(
         request,
         "_deck.html",
@@ -263,8 +241,8 @@ def post_undo(
             list_slug=list_slug,
             active_mode=active_mode,
             reswipe_flag=reswipe_flag,
-            current=current,
-            lookahead=lookahead,
+            current=deck.current(),
+            lookahead=deck.lookahead(),
         ),
     )
 

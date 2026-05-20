@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS swipes (
     list_slug   TEXT    NOT NULL,
     name        TEXT    NOT NULL,
     direction   INTEGER NOT NULL,
-    created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+    -- millisecond precision so swipes within the same second still order
+    created_at  TEXT    NOT NULL
+        DEFAULT (strftime('%Y-%m-%dT%H:%M:%f', 'now')),
     PRIMARY KEY (user, list_slug, name)
 );
 

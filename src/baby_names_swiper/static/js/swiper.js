@@ -77,14 +77,14 @@ function swipe(direction, { skipGlow = false } = {}) {
         setTimeout(() => active.remove(), FLY_DURATION_MS);
 
         // 3. promote the lookahead card to active — instant, already in DOM
-        const promotedName = promoteNextToActive(upcoming);
+        promoteNextToActive(upcoming);
 
         // 4. allow the next swipe right away
         swiping = false;
 
         // 5. record + fetch the new lookahead in the background
         if (swipedName) {
-            commitSwipe(direction, swipedName, promotedName, cfg);
+            commitSwipe(direction, swipedName, cfg);
         }
     };
 
@@ -105,22 +105,20 @@ function promoteNextToActive(upcoming) {
         // the lookahead was the empty placeholder — nothing left to swipe
         upcoming.removeAttribute("id");
         upcoming.removeAttribute("data-card-next-empty");
-        return null;
+        return;
     }
     upcoming.id = "card";
     upcoming.removeAttribute("data-card-next");
     upcoming.setAttribute("data-card", "");
-    return upcoming.dataset.name || null;
 }
 
-function commitSwipe(direction, swipedName, showingName, cfg) {
+function commitSwipe(direction, swipedName, cfg) {
     const body = new URLSearchParams({
         name: swipedName,
         direction: direction === "like" ? "1" : "0",
         list: cfg.list,
         mode: cfg.mode,
         reswipe: cfg.reswipe,
-        showing: showingName || "",
     });
     fetch("/swipe", {
         method: "POST",
