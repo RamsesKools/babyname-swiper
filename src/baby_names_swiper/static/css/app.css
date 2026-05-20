@@ -67,6 +67,77 @@ body {
     color: var(--c-text-muted);
 }
 
+/* --- header "add name" control --- */
+.add-name {
+    position: relative;
+}
+
+.add-name > summary {
+    list-style: none;
+    cursor: pointer;
+    color: var(--c-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0.35rem 0.5rem;
+    border-radius: var(--r);
+    transition: color 150ms ease, background-color 150ms ease;
+}
+
+.add-name > summary::-webkit-details-marker {
+    display: none;
+}
+
+.add-name > summary:hover,
+.add-name[open] > summary {
+    color: var(--c-blue);
+    background: var(--c-blue-light);
+}
+
+.add-name-form {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 20;
+    display: flex;
+    gap: 0.4rem;
+    padding: 0.6rem;
+    background: var(--c-surface);
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-md);
+}
+
+.add-name-form input[type="text"] {
+    font-family: var(--font);
+    font-size: 14px;
+    padding: 0.4rem 0.6rem;
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-text);
+    width: 180px;
+}
+
+.add-name-form button {
+    background: var(--c-blue);
+    color: white;
+    border: none;
+    border-radius: var(--r);
+    padding: 0.4rem 0.85rem;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 150ms ease;
+}
+
+.add-name-form button:hover {
+    background: var(--c-blue-hover);
+}
+
 /* --- list picker (overview page) --- */
 .list-picker {
     display: flex;
@@ -547,6 +618,15 @@ body {
     text-decoration: line-through;
 }
 
+/* the remove (x) button stays in a fixed slot; the optional "delete"
+   button for manual names sits to its left without shifting it */
+.row-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .row-remove {
     flex: 0 0 auto;
     width: 22px;
@@ -565,6 +645,28 @@ body {
 .row-remove:hover {
     background: var(--c-danger);
     border-color: var(--c-danger);
+    color: white;
+}
+
+.row-delete {
+    flex: 0 0 auto;
+    height: 22px;
+    padding: 0 0.5rem;
+    border: 0.5px solid var(--c-danger);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-danger);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+}
+
+.row-delete:hover {
+    background: var(--c-danger);
     color: white;
 }
 

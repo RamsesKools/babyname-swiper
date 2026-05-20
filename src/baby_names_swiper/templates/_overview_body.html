@@ -1,3 +1,32 @@
+{% macro editable_row(name, row_class) %}
+<li class="name-row {{ row_class }}">
+    <span>{{ name }}</span>
+    <span class="row-actions">
+        {% if name in manual_names %}
+        <button class="row-delete"
+                type="button"
+                title="Delete {{ name }} from this list"
+                hx-post="/overview/delete-from-list"
+                hx-target="#overview-body"
+                hx-swap="innerHTML"
+                hx-vals='{"name": "{{ name }}", "list": "{{ active_list }}"}'
+                hx-confirm="Delete '{{ name }}' from the list entirely? It was added manually and will be gone for good.">
+            delete
+        </button>
+        {% endif %}
+        <button class="row-remove"
+                type="button"
+                title="Remove {{ name }}"
+                hx-post="/overview/remove"
+                hx-target="#overview-body"
+                hx-swap="innerHTML"
+                hx-vals='{"name": "{{ name }}", "list": "{{ active_list }}"}'>
+            &times;
+        </button>
+    </span>
+</li>
+{% endmacro %}
+
 <div class="stats">
     <div class="stat">
         <div class="label">total</div>
@@ -68,20 +97,7 @@
     </summary>
     {% if ov.my_likes %}
     <ul class="name-list">
-        {% for n in ov.my_likes %}
-        <li class="name-row">
-            <span>{{ n }}</span>
-            <button class="row-remove"
-                    type="button"
-                    title="Remove {{ n }}"
-                    hx-post="/overview/remove"
-                    hx-target="#overview-body"
-                    hx-swap="innerHTML"
-                    hx-vals='{"name": "{{ n }}", "list": "{{ active_list }}"}'>
-                &times;
-            </button>
-        </li>
-        {% endfor %}
+        {% for n in ov.my_likes %}{{ editable_row(n, "") }}{% endfor %}
     </ul>
     {% else %}
     <p class="empty-note">Nothing here yet.</p>
@@ -107,20 +123,7 @@
     </summary>
     {% if ov.my_dislikes %}
     <ul class="name-list">
-        {% for n in ov.my_dislikes %}
-        <li class="name-row dislike">
-            <span>{{ n }}</span>
-            <button class="row-remove"
-                    type="button"
-                    title="Remove {{ n }}"
-                    hx-post="/overview/remove"
-                    hx-target="#overview-body"
-                    hx-swap="innerHTML"
-                    hx-vals='{"name": "{{ n }}", "list": "{{ active_list }}"}'>
-                &times;
-            </button>
-        </li>
-        {% endfor %}
+        {% for n in ov.my_dislikes %}{{ editable_row(n, "dislike") }}{% endfor %}
     </ul>
     {% else %}
     <p class="empty-note">Nothing here yet.</p>

@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 from baby_names_swiper.config import (
+    MANUAL_DIR,
     MAX_NAME_LEN,
     MAX_NAMES_PER_LIST,
     MAX_UPLOAD_BYTES,
@@ -64,13 +65,70 @@ def get_list(slug: str) -> NameList | None:
     return None
 
 
-def load_names(slug: str) -> list[str]:
-    """Load all names from a list as an alphabetically sorted, deduped list."""
-    nl = get_list(slug)
-    if nl is None:
+def manual_path(slug: str) -> Path:
+    """Path of the manual-additions CSV for a list (may not exist yet)."""
+    return MANUAL_DIR / f"manual_{slug}.csv"
+
+
+def load_manual_names(slug: str) -> list[str]:
+    """Names manually added to a list (empty if none)."""
+    path = manual_path(slug)
+    if not path.exists():
         return []
-    raw = nl.path.read_text(encoding="utf-8")
-    return sanitize_names(raw.splitlines())
+    return sanitize_names(path.read_text(encoding="utf-8").splitlines())
+
+
+def load_names(slug: str) -> list[str]:
+    """Load a list's names: the base CSV merged with any manual additions."""
+    nl = get_list(slug)
+    base = sanitize_names(nl.path.read_text(encoding="utf-8").splitlines()) if nl else []
+    if nl is None and not manual_path(slug).exists():
+        return []
+    return sanitize_names(base + load_manual_names(slug))
+
+
+def is_manual_name(slug: str, name: str) -> bool:
+    """True if `name` is in the list's manual-additions CSV."""
+    target = name.strip().casefold()
+    return any(n.casefold() == target for n in load_manual_names(slug))
+
+
+def add_manual_name(slug: str, name: str) -> str:
+    """Append a name to the list's manual CSV. Returns the cleaned name.
+
+    Raises ValueError if the name is empty after cleaning or already present
+    anywhere in the list (base CSV or manual additions).
+    """
+    cleaned = name.strip()
+    if not cleaned or len(cleaned) > MAX_NAME_LEN:
+        msg = "Enter a name (1-50 characters)."
+        raise ValueError(msg)
+
+    existing = {n.casefold() for n in load_names(slug)}
+    if cleaned.casefold() in existing:
+        msg = f"'{cleaned}' is already in this list."
+        raise ValueError(msg)
+
+    path = manual_path(slug)
+    MANUAL_DIR.mkdir(parents=True, exist_ok=True)
+    current = load_manual_names(slug)
+    path.write_text("\n".join([*current, cleaned]) + "\n", encoding="utf-8")
+    return cleaned
+
+
+def remove_manual_name(slug: str, name: str) -> bool:
+    """Delete a name from the list's manual CSV. Returns True if removed."""
+    target = name.strip().casefold()
+    current = load_manual_names(slug)
+    kept = [n for n in current if n.casefold() != target]
+    if len(kept) == len(current):
+        return False
+    path = manual_path(slug)
+    if kept:
+        path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    elif path.exists():
+        path.unlink()
+    return True
 
 
 def sanitize_names(raw: list[str]) -> list[str]:

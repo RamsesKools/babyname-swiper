@@ -272,13 +272,24 @@ def reset_decks() -> None:
     _decks.clear()
 
 
-def _invalidate_decks(user: str, list_slug: str) -> None:
+def invalidate_decks(user: str, list_slug: str) -> None:
     """Drop cached decks for one user+list so a rebuilt deck picks up changes.
 
-    Called after a swipe is removed/reset: the freed-up names must be able to
+    Called when a swipe is removed/reset: the freed-up names must be able to
     re-enter the deck's pool, which only happens on a fresh build.
     """
     stale = [key for key in _decks if key[0] == user and key[1] == list_slug]
+    for key in stale:
+        del _decks[key]
+
+
+def invalidate_list_decks(list_slug: str) -> None:
+    """Drop every cached deck for a list, across all users.
+
+    Called when the list's name pool itself changes (a name added to or
+    removed from the manual-additions CSV) so both users rebuild fresh.
+    """
+    stale = [key for key in _decks if key[1] == list_slug]
     for key in stale:
         del _decks[key]
 
@@ -292,7 +303,7 @@ def remove_swipe(user: str, list_slug: str, name: str) -> bool:
         )
         removed = cur.rowcount > 0
     if removed:
-        _invalidate_decks(user, list_slug)
+        invalidate_decks(user, list_slug)
     return removed
 
 
@@ -304,7 +315,7 @@ def reset_list(user: str, list_slug: str) -> int:
             (user, list_slug),
         )
         count = cur.rowcount
-    _invalidate_decks(user, list_slug)
+    invalidate_decks(user, list_slug)
     return count
 
 

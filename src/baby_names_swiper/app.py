@@ -14,13 +14,20 @@ from fastapi.templating import Jinja2Templates
 from baby_names_swiper.config import COOKIE_NAME, MAX_UPLOAD_BYTES, USERS
 from baby_names_swiper.db import init_db
 from baby_names_swiper.deps import read_user, sign_user
-from baby_names_swiper.names import list_available_lists, save_upload
+from baby_names_swiper.names import (
+    add_manual_name,
+    list_available_lists,
+    load_manual_names,
+    remove_manual_name,
+    save_upload,
+)
 from baby_names_swiper.swipes import (
     DISLIKE,
     LIKE,
     MODE_RANDOM,
     VALID_MODES,
     get_deck,
+    invalidate_list_decks,
     overview,
     record,
     remove_swipe,
@@ -249,6 +256,17 @@ def post_undo(
     )
 
 
+def _overview_context(user: str, list_slug: str) -> dict[str, object]:
+    return {
+        "user": user,
+        "active_list": list_slug,
+        "ov": overview(user, list_slug),
+        # names manually added to this list, so the overview can show the
+        # extra "delete from list" action on those rows
+        "manual_names": set(load_manual_names(list_slug)),
+    }
+
+
 @app.get("/overview", response_class=HTMLResponse)
 def overview_page(
     request: Request,
@@ -264,10 +282,8 @@ def overview_page(
         request,
         "overview.html",
         {
-            "user": user,
             "lists": list_available_lists(),
-            "active_list": list_slug,
-            "ov": overview(user, list_slug),
+            **_overview_context(user, list_slug),
         },
     )
 
@@ -291,7 +307,7 @@ def overview_remove(
     return templates.TemplateResponse(
         request,
         "_overview_body.html",
-        {"user": user, "active_list": list_slug, "ov": overview(user, list_slug)},
+        _overview_context(user, list_slug),
     )
 
 
@@ -311,8 +327,68 @@ def overview_reset(
     return templates.TemplateResponse(
         request,
         "_overview_body.html",
-        {"user": user, "active_list": list_slug, "ov": overview(user, list_slug)},
+        _overview_context(user, list_slug),
     )
+
+
+@app.post("/overview/delete-from-list", response_class=HTMLResponse)
+def overview_delete_from_list(
+    request: Request,
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    """Delete a manually-added name: drop it from the list AND remove the swipe.
+
+    Only manual additions can be deleted this way; the request is ignored for
+    names that come from the base CSV.
+    """
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slug = _resolve_list(list)
+    clean = name.strip()
+    if remove_manual_name(list_slug, clean):
+        # drop the swipe for every user, since the name no longer exists
+        for u in USERS:
+            remove_swipe(u, list_slug, clean)
+        invalidate_list_decks(list_slug)
+    return templates.TemplateResponse(
+        request,
+        "_overview_body.html",
+        _overview_context(user, list_slug),
+    )
+
+
+@app.post("/add-name")
+def add_name(
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    mode: Annotated[str | None, Form()] = None,
+    reswipe: Annotated[int, Form()] = 0,
+    who: WhoCookie = None,
+) -> RedirectResponse:
+    """Add a single name to a list's manual CSV and auto-like it for this user."""
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        return user_or_redirect
+    user = user_or_redirect
+    list_slug = _resolve_list(list)
+    active_mode = _resolve_mode(mode)
+    reswipe_flag = bool(reswipe)
+    try:
+        added = add_manual_name(list_slug, name)
+    except ValueError:
+        # already present or invalid — just bounce back to the swipe page
+        added = None
+    if added is not None:
+        record(user, list_slug, added, LIKE)
+        invalidate_list_decks(list_slug)
+    target = f"/swipe?list={list_slug}&mode={active_mode}"
+    if reswipe_flag:
+        target += "&reswipe=1"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.get("/upload", response_class=HTMLResponse)
