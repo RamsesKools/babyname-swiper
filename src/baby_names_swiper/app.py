@@ -21,6 +21,7 @@ from baby_names_swiper.swipes import (
     MODE_RANDOM,
     VALID_MODES,
     next_name,
+    next_two,
     overview,
     record,
     undo_last,
@@ -118,6 +119,25 @@ def logout() -> RedirectResponse:
     return response
 
 
+def _deck_context(
+    *,
+    user: str,
+    list_slug: str,
+    active_mode: str,
+    reswipe_flag: bool,
+    current: str | None,
+    lookahead: str | None,
+) -> dict[str, object]:
+    return {
+        "user": user,
+        "active_list": list_slug,
+        "active_mode": active_mode,
+        "reswipe": reswipe_flag,
+        "current_name": current,
+        "next_name": lookahead,
+    }
+
+
 @app.get("/swipe", response_class=HTMLResponse)
 def swipe_page(
     request: Request,
@@ -133,21 +153,24 @@ def swipe_page(
     list_slug = _resolve_list(list)
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
-    current_name = next_name(
-        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
+    current, lookahead = next_two(
+        user,
+        list_slug,
+        mode=active_mode,
+        reswipe_disliked=reswipe_flag,
     )
-    return templates.TemplateResponse(
-        request,
-        "swipe.html",
-        {
-            "user": user,
-            "lists": list_available_lists(),
-            "active_list": list_slug,
-            "active_mode": active_mode,
-            "reswipe": reswipe_flag,
-            "current_name": current_name,
-        },
-    )
+    ctx: dict[str, object] = {
+        "lists": list_available_lists(),
+        **_deck_context(
+            user=user,
+            list_slug=list_slug,
+            active_mode=active_mode,
+            reswipe_flag=reswipe_flag,
+            current=current,
+            lookahead=lookahead,
+        ),
+    }
+    return templates.TemplateResponse(request, "swipe.html", ctx)
 
 
 @app.post("/swipe", response_class=HTMLResponse)
@@ -156,10 +179,16 @@ def post_swipe(
     name: Annotated[str, Form()],
     direction: Annotated[int, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
+    showing: Annotated[str, Form()] = "",
     mode: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
+    """Record a swipe and return only the *next* lookahead card.
+
+    `showing` is the name the client just promoted to the active slot; it is
+    excluded from the lookahead so the deck never shows the same name twice.
+    """
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
@@ -170,20 +199,27 @@ def post_swipe(
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
     record(user, list_slug, name.strip(), direction)
-    next_one = next_name(
-        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
+
+    exclude = {showing.strip()} if showing.strip() else None
+    lookahead = next_name(
+        user,
+        list_slug,
+        mode=active_mode,
+        reswipe_disliked=reswipe_flag,
+        exclude=exclude,
     )
-    template = "_card.html" if next_one else "_empty.html"
+    template = "_card_next.html" if lookahead else "_card_next_empty.html"
     return templates.TemplateResponse(
         request,
         template,
-        {
-            "name": next_one,
-            "active_list": list_slug,
-            "active_mode": active_mode,
-            "reswipe": reswipe_flag,
-            "user": user,
-        },
+        _deck_context(
+            user=user,
+            list_slug=list_slug,
+            active_mode=active_mode,
+            reswipe_flag=reswipe_flag,
+            current=showing.strip() or None,
+            lookahead=lookahead,
+        ),
     )
 
 
@@ -203,20 +239,33 @@ def post_undo(
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
     restored = undo_last(user, list_slug)
-    name = restored or next_name(
-        user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag,
-    )
-    template = "_card.html" if name else "_empty.html"
+    if restored:
+        lookahead = next_name(
+            user,
+            list_slug,
+            mode=active_mode,
+            reswipe_disliked=reswipe_flag,
+            exclude={restored},
+        )
+        current: str | None = restored
+    else:
+        current, lookahead = next_two(
+            user,
+            list_slug,
+            mode=active_mode,
+            reswipe_disliked=reswipe_flag,
+        )
     return templates.TemplateResponse(
         request,
-        template,
-        {
-            "name": name,
-            "active_list": list_slug,
-            "active_mode": active_mode,
-            "reswipe": reswipe_flag,
-            "user": user,
-        },
+        "_deck.html",
+        _deck_context(
+            user=user,
+            list_slug=list_slug,
+            active_mode=active_mode,
+            reswipe_flag=reswipe_flag,
+            current=current,
+            lookahead=lookahead,
+        ),
     )
 
 

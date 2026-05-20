@@ -29,13 +29,7 @@
     </div>
 </div>
 
-<div class="swiper">
-    {% if current_name %}
-    {% include "_card.html" with context %}
-    {% else %}
-    {% with name=None %}
-    {% include "_empty.html" %}
-    {% endwith %}
-    {% endif %}
+<div class="swiper" id="swiper">
+    {% include "_deck.html" with context %}
 </div>
 {% endblock %}

@@ -1,76 +1,170 @@
-// Swipe UX: drag, button fly-away, keyboard, confetti on like.
-// All animations stay client-side; HTMX still does the swap.
+// Swipe UX: drag, fly-away animation, keyboard, confetti.
 //
-// Flow:
-//   1. user triggers like/nope (button, key, or drag past threshold)
-//   2. card gets a fly-left/fly-right class
-//   3. on transitionend we programmatically POST to /swipe via HTMX
-//   4. server returns the next _card.html partial and HTMX swaps #card
+// Speed model — two cards are always in the DOM:
+//   #card        the active card you swipe
+//   #card-next   the lookahead, rendered hidden behind it
+//
+// On a swipe we promote #card-next to #card *immediately* (no network wait),
+// animate the old card away on top, and fire the POST in the background.
+// The POST records the swipe and returns the next lookahead card, which we
+// drop in behind. Result: the next name is on screen the instant you swipe.
 
 const SWIPE_THRESHOLD = 110;       // px drag distance to count as a swipe
 const FLY_DURATION_MS = 380;       // matches CSS .fly-* transition + a buffer
 const GLOW_HOLD_MS = 160;          // brief glow flash before the fly-away starts
 
-// ---- helpers ----
+// ---- DOM helpers ----
 
-function findCard() {
-    return document.querySelector("[data-card]");
+function deck() {
+    return document.getElementById("deck");
 }
 
-function findButton(action) {
-    return document.querySelector(`[data-action='${action}']`);
+function activeCard() {
+    return document.getElementById("card");
 }
 
-function commit(action) {
-    // Use htmx.ajax so we don't fight with our own click handler.
-    const btn = findButton(action);
-    if (!btn || !window.htmx) {
-        if (btn) btn.click();
+function nextCard() {
+    return document.getElementById("card-next");
+}
+
+function cardStack() {
+    return document.getElementById("card-stack");
+}
+
+function deckConfig() {
+    const d = deck();
+    if (!d) return null;
+    return {
+        list: d.dataset.list,
+        mode: d.dataset.mode || "random",
+        reswipe: d.dataset.reswipe || "0",
+    };
+}
+
+// ---- swipe core ----
+
+let swiping = false;
+
+function swipe(direction, { skipGlow = false } = {}) {
+    if (swiping) {
         return;
     }
-    const url = btn.getAttribute("hx-post") || btn.getAttribute("hx-get");
-    const method = btn.getAttribute("hx-post") ? "POST" : "GET";
-    let values = {};
-    try {
-        values = JSON.parse(btn.getAttribute("hx-vals") || "{}");
-    } catch (_) {
-        values = {};
-    }
-    window.htmx.ajax(method, url, {
-        target: btn.getAttribute("hx-target") || "#card",
-        swap: btn.getAttribute("hx-swap") || "outerHTML",
-        values,
-    });
-}
-
-function flyAndCommit(direction, { skipGlow = false } = {}) {
-    const card = findCard();
-    if (!card || card.dataset.flying === "1") {
+    const active = activeCard();
+    const upcoming = nextCard();
+    if (!active || !active.dataset.card && active.id !== "card") {
         return;
     }
-    card.dataset.flying = "1";
+    if (!upcoming) {
+        // lookahead hasn't arrived yet (very fast double-swipe) — ignore
+        return;
+    }
+    swiping = true;
 
+    const cfg = deckConfig();
+    const swipedName = active.dataset.name;
     const flyClass = direction === "like" ? "fly-right" : "fly-left";
     const glowClass = direction === "like" ? "glow-like" : "glow-nope";
 
     const launch = () => {
-        card.classList.add(flyClass);
+        // 1. confetti from the still-centered card
         if (direction === "like") {
-            burstConfetti(card);
+            burstConfetti(active);
         }
-        setTimeout(() => commit(direction), FLY_DURATION_MS);
+        // 2. fly the old card away
+        active.classList.add(flyClass);
+        active.removeAttribute("id");
+        active.removeAttribute("data-card");
+        setTimeout(() => active.remove(), FLY_DURATION_MS);
+
+        // 3. promote the lookahead card to active — instant, already in DOM
+        const promotedName = promoteNextToActive(upcoming);
+
+        // 4. allow the next swipe right away
+        swiping = false;
+
+        // 5. record + fetch the new lookahead in the background
+        if (swipedName) {
+            commitSwipe(direction, swipedName, promotedName, cfg);
+        }
     };
 
     if (skipGlow) {
-        card.classList.remove("glow-like", "glow-nope");
+        active.classList.remove("glow-like", "glow-nope");
         launch();
         return;
     }
-
-    // make sure only the matching glow is on, then hold briefly before launch
-    card.classList.remove("glow-like", "glow-nope");
-    card.classList.add(glowClass);
+    active.classList.remove("glow-like", "glow-nope");
+    active.classList.add(glowClass);
     setTimeout(launch, GLOW_HOLD_MS);
+}
+
+function promoteNextToActive(upcoming) {
+    upcoming.classList.remove("card-behind", "glow-like", "glow-nope");
+    upcoming.style.transform = "";
+    if (upcoming.hasAttribute("data-card-next-empty")) {
+        // the lookahead was the empty placeholder — nothing left to swipe
+        upcoming.removeAttribute("id");
+        upcoming.removeAttribute("data-card-next-empty");
+        return null;
+    }
+    upcoming.id = "card";
+    upcoming.removeAttribute("data-card-next");
+    upcoming.setAttribute("data-card", "");
+    return upcoming.dataset.name || null;
+}
+
+function commitSwipe(direction, swipedName, showingName, cfg) {
+    const body = new URLSearchParams({
+        name: swipedName,
+        direction: direction === "like" ? "1" : "0",
+        list: cfg.list,
+        mode: cfg.mode,
+        reswipe: cfg.reswipe,
+        showing: showingName || "",
+    });
+    fetch("/swipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+    })
+        .then((r) => r.text())
+        .then((html) => {
+            const stack = cardStack();
+            if (!stack) return;
+            // drop the fresh lookahead behind the active card
+            const existing = nextCard();
+            if (existing) {
+                existing.remove();
+            }
+            stack.insertAdjacentHTML("beforeend", html.trim());
+        })
+        .catch(() => {
+            /* network hiccup — next swipe will be blocked until reload */
+        });
+}
+
+function undo() {
+    const cfg = deckConfig();
+    if (!cfg) return;
+    const body = new URLSearchParams({
+        list: cfg.list,
+        mode: cfg.mode,
+        reswipe: cfg.reswipe,
+    });
+    fetch("/swipe/undo", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body,
+    })
+        .then((r) => r.text())
+        .then((html) => {
+            const d = deck();
+            if (d) {
+                d.outerHTML = html.trim();
+                swiping = false;
+            }
+        })
+        .catch(() => { /* ignore */ });
 }
 
 // ---- keyboard shortcuts ----
@@ -82,13 +176,13 @@ document.addEventListener("keydown", (event) => {
     }
     if (event.key === "ArrowRight") {
         event.preventDefault();
-        flyAndCommit("like");
+        swipe("like");
     } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        flyAndCommit("nope");
+        swipe("nope");
     } else if (event.key === "Backspace") {
         event.preventDefault();
-        triggerHtmx("undo");
+        undo();
     }
 });
 
@@ -113,7 +207,7 @@ document.addEventListener("change", (event) => {
     window.location.href = url.toString();
 });
 
-// ---- button click -> fly-away animation (intercepts HTMX) ----
+// ---- button clicks ----
 
 document.body.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-action]");
@@ -122,23 +216,21 @@ document.body.addEventListener("click", (event) => {
     }
     const action = btn.dataset.action;
     if (action === "like" || action === "nope") {
-        event.preventDefault();
-        event.stopPropagation();
-        flyAndCommit(action);
+        swipe(action);
+    } else if (action === "undo") {
+        undo();
     }
-    // "undo" falls through and lets HTMX handle it directly
-}, true);
+});
 
 // ---- drag / pointer gestures ----
 
 let drag = null;
 
 function onPointerDown(event) {
-    const card = event.target.closest("[data-card]");
-    if (!card || card.dataset.flying === "1") {
+    const card = event.target.closest("#card");
+    if (!card || swiping) {
         return;
     }
-    // ignore clicks on buttons inside the card area (none currently, but safe)
     if (event.target.closest("button")) {
         return;
     }
@@ -158,7 +250,7 @@ function onPointerMove(event) {
         return;
     }
     drag.dx = event.clientX - drag.startX;
-    const dy = (event.clientY - drag.startY) * 0.2;     // small vertical follow
+    const dy = (event.clientY - drag.startY) * 0.2;
     const rot = drag.dx / 20;
     drag.card.style.transform = `translate(${drag.dx}px, ${dy}px) rotate(${rot}deg)`;
 
@@ -194,15 +286,14 @@ function onPointerUp(event) {
 
     if (dx > SWIPE_THRESHOLD) {
         drag = null;
-        flyAndCommit("like", { skipGlow: true });
+        swipe("like", { skipGlow: true });
         return;
     }
     if (dx < -SWIPE_THRESHOLD) {
         drag = null;
-        flyAndCommit("nope", { skipGlow: true });
+        swipe("nope", { skipGlow: true });
         return;
     }
-    // snap back
     card.style.transform = "";
     card.classList.remove("glow-like", "glow-nope");
     drag = null;
@@ -231,7 +322,7 @@ function burstConfetti(originEl) {
         const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
         const distance = 140 + Math.random() * 160;
         const dx = Math.cos(angle) * distance;
-        const dy = Math.sin(angle) * distance + 200; // bias downward = gravity
+        const dy = Math.sin(angle) * distance + 200;
         piece.style.setProperty("--dx", `${dx}px`);
         piece.style.setProperty("--dy", `${dy}px`);
         piece.style.setProperty("--rot", `${(Math.random() - 0.5) * 720}deg`);

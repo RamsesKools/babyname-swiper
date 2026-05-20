@@ -1,0 +1,24 @@
+<div id="deck"
+     data-list="{{ active_list }}"
+     data-mode="{{ active_mode if active_mode is defined else 'random' }}"
+     data-reswipe="{{ 1 if (reswipe is defined and reswipe) else 0 }}">
+    {% if current_name %}
+    <div class="card-stack" id="card-stack">
+        {% include "_card.html" with context %}
+        {% if next_name %}
+        {% include "_card_next.html" with context %}
+        {% else %}
+        {% include "_card_next_empty.html" %}
+        {% endif %}
+    </div>
+    <div class="actions">
+        <button class="btn btn-nope" data-action="nope" type="button">nope</button>
+        <button class="btn btn-like" data-action="like" type="button">like</button>
+    </div>
+    {% else %}
+    {% include "_empty.html" %}
+    {% endif %}
+    <div class="undo-row">
+        <button class="btn btn-undo" data-action="undo" type="button">undo last</button>
+    </div>
+</div>

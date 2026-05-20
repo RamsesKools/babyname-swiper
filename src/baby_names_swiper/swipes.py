@@ -19,7 +19,7 @@ MODE_PARTNER_LIKES = "partner_likes"
 VALID_MODES = (MODE_RANDOM, MODE_ALPHA, MODE_PARTNER_LIKES)
 
 # weighting for MODE_RANDOM: relative selection weights
-WEIGHT_PARTNER_LIKE = 5.0     # 5x more likely than a neutral name
+WEIGHT_PARTNER_LIKE = 5.0  # 5x more likely than a neutral name
 WEIGHT_NEUTRAL = 1.0
 WEIGHT_PARTNER_DISLIKE = 0.2  # 5x less likely than a neutral name
 
@@ -67,6 +67,7 @@ def next_name(
     *,
     mode: str = MODE_RANDOM,
     reswipe_disliked: bool = False,
+    exclude: set[str] | None = None,
 ) -> str | None:
     """Pick the next name to show, given the active mode and reswipe flag.
 
@@ -76,6 +77,7 @@ def next_name(
       - partner_likes: only names the partner liked
 
     reswipe_disliked: include names the *current user* previously disliked.
+    exclude: extra names to drop from the pool (e.g. the card already on screen).
     """
     if mode not in VALID_MODES:
         mode = MODE_RANDOM
@@ -91,6 +93,8 @@ def next_name(
     seen = set(my_likes)
     if not reswipe_disliked:
         seen |= my_dislikes
+    if exclude:
+        seen |= exclude
 
     partner = _partner(user)
     partner_likes = _liked_by(partner, list_slug) if partner else set()
@@ -117,6 +121,32 @@ def next_name(
         for n in pool
     ]
     return random.choices(pool, weights=weights, k=1)[0]  # noqa: S311 -- not security sensitive
+
+
+def next_two(
+    user: str,
+    list_slug: str,
+    *,
+    mode: str = MODE_RANDOM,
+    reswipe_disliked: bool = False,
+) -> tuple[str | None, str | None]:
+    """Return (current, lookahead) names. lookahead excludes current."""
+    first = next_name(
+        user,
+        list_slug,
+        mode=mode,
+        reswipe_disliked=reswipe_disliked,
+    )
+    if first is None:
+        return None, None
+    second = next_name(
+        user,
+        list_slug,
+        mode=mode,
+        reswipe_disliked=reswipe_disliked,
+        exclude={first},
+    )
+    return first, second
 
 
 def undo_last(user: str, list_slug: str) -> str | None:

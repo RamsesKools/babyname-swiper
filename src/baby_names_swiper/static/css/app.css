@@ -149,6 +149,40 @@ body {
     gap: 2rem;
 }
 
+#deck {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+/* Both cards share one grid cell so they overlap and the stack
+   auto-sizes to the tallest card. */
+.card-stack {
+    display: grid;
+    width: 100%;
+    max-width: 480px;
+}
+
+.card-stack > .card,
+.card-stack > .card-empty {
+    grid-area: 1 / 1;
+}
+
+/* the lookahead card sits behind: slightly smaller, dimmed, non-interactive */
+.card-behind {
+    transform: scale(0.95);
+    filter: brightness(0.99);
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#card {
+    z-index: 1;
+}
+
 .card {
     position: relative;
     width: 100%;
@@ -219,15 +253,6 @@ body {
     left: 1.5rem;
     color: var(--c-danger);
     transform: rotate(15deg);
-}
-
-.swiper-card-wrap {
-    position: relative;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2rem;
 }
 
 /* confetti */

@@ -11,6 +11,7 @@ from baby_names_swiper.swipes import (
     MODE_PARTNER_LIKES,
     MODE_RANDOM,
     next_name,
+    next_two,
     overview,
     record,
     undo_last,
@@ -113,6 +114,35 @@ def test_reswipe_does_not_reinclude_own_likes():
     _seed_list("boys", ["Aaron"])
     record("Ramses", "boys", "Aaron", LIKE)
     assert next_name("Ramses", "boys", reswipe_disliked=True) is None
+
+
+def test_next_name_exclude_drops_names_from_pool():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    n = next_name("Ramses", "boys", mode=MODE_ALPHA, exclude={"Aaron", "Bram"})
+    assert n == "Cas"
+
+
+def test_next_two_returns_distinct_current_and_lookahead():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    current, lookahead = next_two("Ramses", "boys", mode=MODE_ALPHA)
+    assert current == "Aaron"
+    assert lookahead == "Bram"
+    assert current != lookahead
+
+
+def test_next_two_lookahead_none_when_only_one_name_left():
+    _seed_list("boys", ["Aaron"])
+    current, lookahead = next_two("Ramses", "boys", mode=MODE_ALPHA)
+    assert current == "Aaron"
+    assert lookahead is None
+
+
+def test_next_two_both_none_when_list_exhausted():
+    _seed_list("boys", ["Aaron"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    current, lookahead = next_two("Ramses", "boys")
+    assert current is None
+    assert lookahead is None
 
 
 def test_random_mode_weights_partner_likes_higher(monkeypatch):
