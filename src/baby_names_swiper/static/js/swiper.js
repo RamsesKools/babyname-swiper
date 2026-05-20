@@ -65,6 +65,11 @@ function swipe(direction, { skipGlow = false } = {}) {
     const flyClass = direction === "like" ? "fly-right" : "fly-left";
     const glowClass = direction === "like" ? "glow-like" : "glow-nope";
 
+    // if the card behind is the empty placeholder, this was the last real
+    // card: record the swipe and reload the whole deck so the proper
+    // end-of-list state is shown (no half-card, no double message)
+    const lastCard = upcoming.hasAttribute("data-card-next-empty");
+
     const launch = () => {
         // 1. confetti from the still-centered card
         if (direction === "like") {
@@ -75,6 +80,12 @@ function swipe(direction, { skipGlow = false } = {}) {
         active.removeAttribute("id");
         active.removeAttribute("data-card");
         setTimeout(() => active.remove(), FLY_DURATION_MS);
+
+        if (lastCard) {
+            // no real card left — record, then rebuild the deck end state
+            commitLastSwipe(direction, swipedName, cfg);
+            return;
+        }
 
         // 3. promote the lookahead card to active — instant, already in DOM
         promoteNextToActive(upcoming);
@@ -101,29 +112,26 @@ function swipe(direction, { skipGlow = false } = {}) {
 function promoteNextToActive(upcoming) {
     upcoming.classList.remove("card-behind", "glow-like", "glow-nope");
     upcoming.style.transform = "";
-    if (upcoming.hasAttribute("data-card-next-empty")) {
-        // the lookahead was the empty placeholder — nothing left to swipe
-        upcoming.removeAttribute("id");
-        upcoming.removeAttribute("data-card-next-empty");
-        return;
-    }
     upcoming.id = "card";
     upcoming.removeAttribute("data-card-next");
     upcoming.setAttribute("data-card", "");
 }
 
-function commitSwipe(direction, swipedName, cfg) {
-    const body = new URLSearchParams({
+function swipeBody(direction, swipedName, cfg) {
+    return new URLSearchParams({
         name: swipedName,
         direction: direction === "like" ? "1" : "0",
         list: cfg.list,
         mode: cfg.mode,
         reswipe: cfg.reswipe,
     });
+}
+
+function commitSwipe(direction, swipedName, cfg) {
     fetch("/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
+        body: swipeBody(direction, swipedName, cfg),
     })
         .then((r) => r.text())
         .then((html) => {
@@ -138,6 +146,38 @@ function commitSwipe(direction, swipedName, cfg) {
         })
         .catch(() => {
             /* network hiccup — next swipe will be blocked until reload */
+        });
+}
+
+// last real card swiped: record it, then rebuild the whole deck so the
+// proper end-of-list state renders (avoids a stranded empty placeholder).
+// The deck swap waits out the fly-away animation so the card leaves cleanly.
+function commitLastSwipe(direction, swipedName, cfg) {
+    const animationDone = new Promise((resolve) => {
+        setTimeout(resolve, FLY_DURATION_MS);
+    });
+    fetch("/swipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: swipeBody(direction, swipedName, cfg),
+    })
+        .then(() => fetch(`/swipe?list=${encodeURIComponent(cfg.list)}`
+            + `&mode=${encodeURIComponent(cfg.mode)}`
+            + `&reswipe=${encodeURIComponent(cfg.reswipe)}`))
+        .then((r) => r.text())
+        .then((html) => Promise.all([html, animationDone]))
+        .then(([html]) => {
+            // pull just the #deck fragment out of the full page response
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const freshDeck = doc.getElementById("deck");
+            const currentDeck = deck();
+            if (freshDeck && currentDeck) {
+                currentDeck.replaceWith(freshDeck);
+            }
+            swiping = false;
+        })
+        .catch(() => {
+            swiping = false;
         });
 }
 
