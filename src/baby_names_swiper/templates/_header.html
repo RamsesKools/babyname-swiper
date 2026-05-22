@@ -1,31 +1,53 @@
-<header class="topbar">
-    <a class="brand" href="/swipe">
-        <img src="/static/logos/logo.svg" alt="Baby Names Swiper">
+<nav id="nav">
+    <a href="/swipe" class="nav-logo">
+        <img src="/static/logos/logo.svg" alt="Baby Names Swiper" class="nav-logo-img">
     </a>
-    <nav>
-        <a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe</a>
-        <a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a>
-        <a href="/upload" class="{% if request.url.path == '/upload' %}active{% endif %}">upload</a>
+
+    {# Hamburger: hidden on desktop, shown on narrow screens (see my-design.css).
+       nav.js toggles the .open class on #nav when this is clicked. #}
+    <button class="nav-hamburger" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+    </button>
+
+    <ul class="nav-links">
+        <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe</a></li>
+        <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
+        <li><a href="/upload" class="{% if request.url.path == '/upload' %}active{% endif %}">upload</a></li>
+
         {% if active_list is defined and active_list %}
-        <details class="add-name">
-            <summary>+ name</summary>
-            <form class="add-name-form" method="post" action="/add-name">
-                <input type="hidden" name="list" value="{{ active_list }}">
-                {% if active_mode is defined and active_mode %}
-                <input type="hidden" name="mode" value="{{ active_mode }}">
-                {% endif %}
-                {% if reswipe is defined and reswipe %}
-                <input type="hidden" name="reswipe" value="1">
-                {% endif %}
-                <input type="text" name="name" placeholder="add a name&hellip;"
-                       maxlength="50" autocomplete="off" required>
-                <button type="submit">add</button>
-            </form>
-        </details>
+        {# "+ name" is a dropdown: a trigger that reveals a panel below it.
+           On desktop the panel opens on hover; on mobile nav.js toggles
+           .dropdown-open on click. #}
+        <li class="nav-dropdown">
+            <span class="nav-dropdown-label">+ name</span>
+            <ul class="nav-dropdown-menu">
+                <li>
+                    <form class="add-name-form" method="post" action="/add-name">
+                        <input type="hidden" name="list" value="{{ active_list }}">
+                        {% if active_mode is defined and active_mode %}
+                        <input type="hidden" name="mode" value="{{ active_mode }}">
+                        {% endif %}
+                        {% if reswipe is defined and reswipe %}
+                        <input type="hidden" name="reswipe" value="1">
+                        {% endif %}
+                        <input type="text" name="name" placeholder="add a name&hellip;"
+                               maxlength="50" autocomplete="off" required>
+                        <button type="submit">add</button>
+                    </form>
+                </li>
+            </ul>
+        </li>
         {% endif %}
+
         {% if user is defined and user %}
-            <span class="who">{{ user }}</span>
-            <a href="/logout">switch</a>
+        {# Active user is a dropdown: the trigger shows who's logged in,
+           and the panel holds the "switch user" action. #}
+        <li class="nav-dropdown">
+            <span class="nav-dropdown-label">Active user: {{ user }}</span>
+            <ul class="nav-dropdown-menu">
+                <li><a href="/logout">switch user</a></li>
+            </ul>
+        </li>
         {% endif %}
-    </nav>
-</header>
+    </ul>
+</nav>

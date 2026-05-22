@@ -11,101 +11,12 @@ body {
     padding: 2rem 1.5rem 4rem;
 }
 
-/* --- top bar / header --- */
-.topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem max(1.5rem, calc((100% - 760px) / 2));
-    background: var(--c-surface);
-    border-bottom: 0.5px solid var(--c-border);
-}
-
-.topbar .brand {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    text-decoration: none;
-    color: var(--c-text);
-    font-family: var(--font-mono);
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.topbar .brand img {
-    height: 26px;
-    width: auto;
-    display: block;
-}
-
-.topbar nav {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-}
-
-.topbar nav a {
-    color: var(--c-text-secondary);
-    text-decoration: none;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 0.35rem 0.5rem;
-    border-radius: var(--r);
-    transition: color 150ms ease, background-color 150ms ease;
-}
-
-.topbar nav a:hover,
-.topbar nav a.active {
-    color: var(--c-blue);
-    background: var(--c-blue-light);
-}
-
-.topbar .who {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: var(--c-text-muted);
-}
-
 /* --- header "add name" control --- */
-.add-name {
-    position: relative;
-}
-
-.add-name > summary {
-    list-style: none;
-    cursor: pointer;
-    color: var(--c-text-secondary);
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 0.35rem 0.5rem;
-    border-radius: var(--r);
-    transition: color 150ms ease, background-color 150ms ease;
-}
-
-.add-name > summary::-webkit-details-marker {
-    display: none;
-}
-
-.add-name > summary:hover,
-.add-name[open] > summary {
-    color: var(--c-blue);
-    background: var(--c-blue-light);
-}
-
+/* The form lives inside a .nav-dropdown-menu panel, so the panel handles
+   positioning. The form just lays its input + button out in a row. */
 .add-name-form {
-    position: absolute;
-    top: calc(100% + 0.5rem);
-    right: 0;
-    z-index: 20;
     display: flex;
     gap: 0.4rem;
-    padding: 0.6rem;
-    background: var(--c-surface);
-    border: 0.5px solid var(--c-border-strong);
-    border-radius: var(--r);
-    box-shadow: var(--shadow-md);
 }
 
 .add-name-form input[type="text"] {
