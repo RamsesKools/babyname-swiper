@@ -11,11 +11,11 @@
     </mask>
   </defs>
   <g>
-    <path d="M 4 0 H 246.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#ffade9"/>
-    <path d="M 246 0 H 572 A 4 4 0 0 1 576 4 V 96 A 4 4 0 0 1 572 100 H 246 V 0 Z" fill="#ffade9"/>
-    <path d="M 4 0 H 246.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#3e77dc" mask="url(#mask-left)"/>
-    <path d="M 246 0 H 572 A 4 4 0 0 1 576 4 V 96 A 4 4 0 0 1 572 100 H 246 V 0 Z M 249 3 H 572 A 1 1 0 0 1 573 4 V 96 A 1 1 0 0 1 572 97 H 249 V 3 Z" fill-rule="evenodd" fill="#3e77dc"/>
-    <text fill="#3e77dc" text-anchor="start" dominant-baseline="central"
+    <path d="M 4 0 H 246.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#ffffff"/>
+    <path d="M 246 0 H 572 A 4 4 0 0 1 576 4 V 96 A 4 4 0 0 1 572 100 H 246 V 0 Z" fill="#ffffff"/>
+    <path d="M 4 0 H 246.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#a4e0ea" mask="url(#mask-left)"/>
+    <path d="M 246 0 H 572 A 4 4 0 0 1 576 4 V 96 A 4 4 0 0 1 572 100 H 246 V 0 Z M 249 3 H 572 A 1 1 0 0 1 573 4 V 96 A 1 1 0 0 1 572 97 H 249 V 3 Z" fill-rule="evenodd" fill="#a4e0ea"/>
+    <text fill="#a4e0ea" text-anchor="start" dominant-baseline="central"
           x="251" y="50"
           font-size="100" font-family="Geist, sans-serif"
           font-weight="700">names</text>
