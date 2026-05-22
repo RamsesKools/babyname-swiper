@@ -12,6 +12,7 @@
 const SWIPE_THRESHOLD = 110;       // px drag distance to count as a swipe
 const FLY_DURATION_MS = 380;       // matches CSS .fly-* transition + a buffer
 const GLOW_HOLD_MS = 160;          // brief glow flash before the fly-away starts
+const MATCH_HOLD_MS = 10000;       // how long the new-match celebration stays up
 
 // ---- DOM helpers ----
 
@@ -143,6 +144,16 @@ function commitSwipe(direction, swipedName, cfg) {
                 existing.remove();
             }
             stack.insertAdjacentHTML("beforeend", html.trim());
+            // the freshly-inserted lookahead carries the match flag for the
+            // name we just swiped; pull it off and run the celebration
+            const fresh = nextCard();
+            const matchName = fresh && fresh.dataset.matchName;
+            if (fresh) {
+                fresh.removeAttribute("data-match-name");
+            }
+            if (matchName) {
+                showMatchCelebration(matchName);
+            }
         })
         .catch(() => {
             /* network hiccup — next swipe will be blocked until reload */
@@ -156,14 +167,23 @@ function commitLastSwipe(direction, swipedName, cfg) {
     const animationDone = new Promise((resolve) => {
         setTimeout(resolve, FLY_DURATION_MS);
     });
+    let matchName = null;
     fetch("/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: swipeBody(direction, swipedName, cfg),
     })
-        .then(() => fetch(`/swipe?list=${encodeURIComponent(cfg.list)}`
-            + `&mode=${encodeURIComponent(cfg.mode)}`
-            + `&reswipe=${encodeURIComponent(cfg.reswipe)}`))
+        .then((r) => r.text())
+        .then((postHtml) => {
+            // the POST response is the empty lookahead fragment; it carries
+            // the match flag for the name we just swiped
+            const frag = new DOMParser().parseFromString(postHtml, "text/html");
+            const el = frag.querySelector("[data-match-name]");
+            matchName = el ? el.getAttribute("data-match-name") : null;
+            return fetch(`/swipe?list=${encodeURIComponent(cfg.list)}`
+                + `&mode=${encodeURIComponent(cfg.mode)}`
+                + `&reswipe=${encodeURIComponent(cfg.reswipe)}`);
+        })
         .then((r) => r.text())
         .then((html) => Promise.all([html, animationDone]))
         .then(([html]) => {
@@ -175,6 +195,9 @@ function commitLastSwipe(direction, swipedName, cfg) {
                 currentDeck.replaceWith(freshDeck);
             }
             swiping = false;
+            if (matchName) {
+                showMatchCelebration(matchName);
+            }
         })
         .catch(() => {
             swiping = false;
@@ -367,4 +390,54 @@ function burstConfetti(originEl) {
         document.body.appendChild(piece);
         setTimeout(() => piece.remove(), 950);
     }
+}
+
+// ---- new-match celebration ----
+//
+// When a like creates a match, a celebration card pops in over the deck:
+// green glow, a "YOU BOTH LIKED" stamp, and a shout-out banner. Swiping is
+// frozen for MATCH_HOLD_MS; clicking the card dismisses it early.
+
+let matchCelebrationActive = false;
+
+function dismissMatchCelebration(overlay) {
+    if (!overlay || !overlay.isConnected) {
+        return;
+    }
+    overlay.classList.add("match-overlay-out");
+    setTimeout(() => overlay.remove(), 250);
+    matchCelebrationActive = false;
+    swiping = false;
+}
+
+function showMatchCelebration(name) {
+    if (matchCelebrationActive) {
+        return;
+    }
+    matchCelebrationActive = true;
+    // block swiping for the duration of the celebration
+    swiping = true;
+
+    const overlay = document.createElement("div");
+    overlay.className = "match-overlay";
+    overlay.innerHTML = `
+        <div class="match-shout">It's a match!</div>
+        <div class="card match-card glow-like">
+            <div class="stamp stamp-match">you both liked</div>
+            <div class="name">${name}</div>
+            <div class="meta">tap to continue</div>
+        </div>
+        <div class="match-hint">you both swiped right</div>
+    `;
+    document.body.appendChild(overlay);
+
+    const card = overlay.querySelector(".match-card");
+    burstConfetti(card);
+    // a second burst part-way through keeps the celebration lively
+    setTimeout(() => {
+        if (overlay.isConnected) burstConfetti(card);
+    }, 600);
+
+    overlay.addEventListener("click", () => dismissMatchCelebration(overlay));
+    setTimeout(() => dismissMatchCelebration(overlay), MATCH_HOLD_MS);
 }

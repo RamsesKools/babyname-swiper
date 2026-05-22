@@ -88,6 +88,14 @@ def _partner(user: str) -> str | None:
     return others[0] if others else None
 
 
+def is_match(user: str, list_slug: str, name: str) -> bool:
+    """True when both this user and their partner have liked `name`."""
+    partner = _partner(user)
+    if partner is None:
+        return False
+    return name in _liked_by(user, list_slug) and name in _liked_by(partner, list_slug)
+
+
 def undo_last(user: str, list_slug: str) -> str | None:
     """Delete the latest swipe and return the name so the UI can re-show it."""
     with cursor() as cur:

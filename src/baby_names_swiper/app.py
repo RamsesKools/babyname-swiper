@@ -28,6 +28,7 @@ from baby_names_swiper.swipes import (
     VALID_MODES,
     get_deck,
     invalidate_list_decks,
+    is_match,
     overview,
     record,
     remove_swipe,
@@ -203,23 +204,25 @@ def post_swipe(
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
 
-    record(user, list_slug, name.strip(), direction)
+    swiped_name = name.strip()
+    record(user, list_slug, swiped_name, direction)
+    # a new match exists only when this swipe was a like and the partner had
+    # already liked the same name
+    new_match = direction == LIKE and is_match(user, list_slug, swiped_name)
     deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
 
     lookahead = deck.lookahead()
     template = "_card_next.html" if lookahead else "_card_next_empty.html"
-    return templates.TemplateResponse(
-        request,
-        template,
-        _deck_context(
-            user=user,
-            list_slug=list_slug,
-            active_mode=active_mode,
-            reswipe_flag=reswipe_flag,
-            current=deck.current(),
-            lookahead=lookahead,
-        ),
+    ctx = _deck_context(
+        user=user,
+        list_slug=list_slug,
+        active_mode=active_mode,
+        reswipe_flag=reswipe_flag,
+        current=deck.current(),
+        lookahead=lookahead,
     )
+    ctx["match_name"] = swiped_name if new_match else None
+    return templates.TemplateResponse(request, template, ctx)
 
 
 @app.post("/swipe/undo", response_class=HTMLResponse)

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>match preview</title>
+    <link rel="stylesheet" href="/static/css/my-design.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <script src="/static/js/swiper.js" defer></script>
+</head>
+<body>
+    <main class="page-wrap">
+        <button id="trigger" style="padding:1rem 2rem;font-size:1rem;">trigger match</button>
+    </main>
+    <script>
+        document.getElementById("trigger").addEventListener("click", () => {
+            showMatchCelebration("Stirling");
+        });
+    </script>
+</body>
+</html>
