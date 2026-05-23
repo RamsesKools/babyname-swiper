@@ -112,6 +112,30 @@
         });
     }
 
+    /* --- Re-open "Add name(s)" after a successful submit ---
+       The /add-name route appends ?added=1 to the redirect target so the
+       user can chain several adds without re-opening the dropdown each
+       time. We strip the flag from the URL so a manual refresh doesn't
+       keep reopening it. */
+    if (/[?&]added=1\b/.test(window.location.search)) {
+        var clickable = nav.querySelector('.nav-dropdown-clickable');
+        if (clickable) {
+            clickable.classList.add('dropdown-open');
+            var formWrap = clickable.querySelector('.add-name-form-wrap');
+            if (formWrap) {
+                formWrap.hidden = false;
+                var nameInput = formWrap.querySelector('input[name="name"]');
+                if (nameInput) nameInput.focus();
+            }
+        }
+        var cleaned = window.location.search
+            .replace(/([?&])added=1(&|$)/, function (_, pre, post) {
+                return post === '&' ? pre : (pre === '?' ? '' : pre);
+            });
+        var newUrl = window.location.pathname + cleaned + window.location.hash;
+        window.history.replaceState({}, '', newUrl);
+    }
+
     /* --- Close click-driven dropdowns when clicking outside --- */
     document.addEventListener('click', function (e) {
         var openClickable = nav.querySelectorAll('.nav-dropdown-clickable.dropdown-open');

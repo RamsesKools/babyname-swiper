@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
+from urllib.parse import urlparse
 
 from fastapi import Cookie, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -366,6 +367,7 @@ def overview_delete_from_list(
 
 @app.post("/add-name")
 def add_name(
+    request: Request,
     name: Annotated[str, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     mode: Annotated[str | None, Form()] = None,
@@ -388,10 +390,39 @@ def add_name(
     if added is not None:
         record(user, list_slug, added, LIKE)
         invalidate_list_decks(list_slug)
-    target = f"/swipe?list={list_slug}&mode={active_mode}"
-    if reswipe_flag:
-        target += "&reswipe=1"
+    # Send the user back to whichever page they submitted from, so adding
+    # a name from /overview doesn't kick them to /swipe. We only honour the
+    # Referer when it's same-origin (path-only), falling back to /swipe.
+    target = _same_origin_path(request, request.headers.get("referer"))
+    if target is None:
+        target = f"/swipe?list={list_slug}&mode={active_mode}"
+        if reswipe_flag:
+            target += "&reswipe=1"
+    # Flag the redirect so the header can re-open the "Add name(s)" panel,
+    # letting the user queue several names in a row.
+    sep = "&" if "?" in target else "?"
+    target += f"{sep}added=1"
     return RedirectResponse(url=target, status_code=303)
+
+
+def _same_origin_path(request: Request, referer: str | None) -> str | None:
+    """Return the path+query of `referer` if it points at this app, else None."""
+    if not referer:
+        return None
+    parsed = urlparse(referer)
+    # Reject anything that targets a different host.
+    if parsed.netloc and parsed.netloc != request.url.netloc:
+        return None
+    path = parsed.path or "/"
+    # Don't loop back into /add-name itself.
+    if path.startswith("/add-name"):
+        return None
+    # Strip any pre-existing added=1 flag from the query so we don't double it.
+    query = parsed.query
+    if query:
+        parts = [p for p in query.split("&") if p and p != "added=1"]
+        query = "&".join(parts)
+    return f"{path}?{query}" if query else path
 
 
 @app.get("/upload", response_class=HTMLResponse)
