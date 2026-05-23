@@ -11,7 +11,16 @@
 
     <ul class="nav-links">
         <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe</a></li>
-        <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
+
+        {# Overview is now a dropdown: the trigger keeps the old /overview link
+           on click/tap (so the existing summary page remains the default
+           target), and the menu adds the new "Name lists" entry. #}
+        <li class="nav-dropdown {% if request.url.path in ['/overview', '/lists'] %}active{% endif %}">
+            <a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a>
+            <ul class="nav-dropdown-menu">
+                <li><a href="/lists" class="{% if request.url.path == '/lists' %}active{% endif %}">Name lists</a></li>
+            </ul>
+        </li>
 
         {# "Add name(s)" dropdown -- replaces the old "upload" link and "+ name"
            dropdown. The menu has two items: a link to the upload page, and a

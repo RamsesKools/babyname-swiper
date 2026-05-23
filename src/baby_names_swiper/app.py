@@ -5,9 +5,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
-from fastapi import Cookie, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Cookie, FastAPI, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from baby_names_swiper.config import COOKIE_NAME, MAX_UPLOAD_BYTES, USERS
 from baby_names_swiper.db import init_db
 from baby_names_swiper.deps import read_user, sign_user
+from baby_names_swiper.lists_view import NameRow, build_rows, normalise_states, normalise_view
 from baby_names_swiper.names import (
     add_manual_name,
     list_available_lists,
@@ -24,11 +25,13 @@ from baby_names_swiper.names import (
     save_upload,
 )
 from baby_names_swiper.swipes import (
+    ALL_STATES,
     DISLIKE,
     LIKE,
     MODE_RANDOM,
     VALID_MODES,
     get_deck,
+    invalidate_decks,
     invalidate_list_decks,
     is_match,
     overview,
@@ -364,6 +367,233 @@ def overview_delete_from_list(
         "_overview_body.html",
         _overview_context(user, list_slug),
     )
+
+
+# --------------------------------------------------------------------------- #
+#                               name-lists page                               #
+# --------------------------------------------------------------------------- #
+
+LISTS_PAGE_SIZE = 50
+
+
+def _resolve_list_slugs(values: list[str] | None) -> list[str]:
+    """Filter the requested slugs down to ones that actually exist.
+
+    The lists page is fine with an empty selection (renders an empty body), so
+    unlike /swipe it does NOT fall back to the first available list.
+    """
+    if not values:
+        return []
+    available = {nl.slug for nl in list_available_lists()}
+    return [s for s in values if s in available]
+
+
+def _lists_context(
+    *,
+    user: str,
+    list_slugs: list[str],
+    mode: str,
+    view: str,
+    states: list[str],
+    offset: int,
+    rows_all: list[NameRow],
+) -> dict[str, object]:
+    end = offset + LISTS_PAGE_SIZE
+    visible = rows_all[offset:end]
+    has_more = end < len(rows_all)
+    next_offset = end if has_more else None
+    # `add_list_slug` is the slug the in-page add-name form should target.
+    # Auto-selects when exactly one list is checked, else None (form disabled).
+    add_list_slug = list_slugs[0] if len(list_slugs) == 1 else None
+    # URL the infinite-scroll trigger calls when the last row of this batch
+    # becomes visible. Pre-built here so the template stays simple.
+    next_rows_url: str | None = None
+    if next_offset is not None:
+        params: list[tuple[str, str]] = [("list", s) for s in list_slugs]
+        params.append(("mode", mode))
+        params.append(("view", view))
+        params.extend(("state", st) for st in states)
+        params.append(("offset", str(next_offset)))
+        next_rows_url = "/lists/rows?" + urlencode(params)
+    return {
+        "user": user,
+        "lists": list_available_lists(),
+        "selected_slugs": list_slugs,
+        "selected_set": set(list_slugs),
+        "active_mode": mode,
+        "active_view": view,
+        "active_states": states,
+        "active_states_set": set(states),
+        "rows": visible,
+        "rows_total": len(rows_all),
+        "has_more": has_more,
+        "next_offset": next_offset,
+        "next_rows_url": next_rows_url,
+        "add_list_slug": add_list_slug,
+        # Drives the header's "Add single name" form: it only renders when a
+        # single list is the unambiguous target.
+        "active_list": add_list_slug,
+    }
+
+
+@app.get("/lists", response_class=HTMLResponse)
+def lists_page(
+    request: Request,
+    list: Annotated[list[str] | None, Query()] = None,  # noqa: A002
+    mode: str | None = None,
+    view: str | None = None,
+    state: Annotated[list[str] | None, Query()] = None,
+    who: WhoCookie = None,
+) -> Response:
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        return user_or_redirect
+    user = user_or_redirect
+    list_slugs = _resolve_list_slugs(list)
+    active_mode = _resolve_mode(mode)
+    active_view = normalise_view(view)
+    states = normalise_states(state)
+    rows_all = build_rows(
+        user=user,
+        list_slugs=list_slugs,
+        mode=active_mode,
+        states=states,
+    )
+    ctx = _lists_context(
+        user=user,
+        list_slugs=list_slugs,
+        mode=active_mode,
+        view=active_view,
+        states=states,
+        offset=0,
+        rows_all=rows_all,
+    )
+    return templates.TemplateResponse(request, "lists.html", ctx)
+
+
+@app.get("/lists/rows", response_class=HTMLResponse)
+def lists_rows(
+    request: Request,
+    list: Annotated[list[str] | None, Query()] = None,  # noqa: A002
+    mode: str | None = None,
+    view: str | None = None,
+    state: Annotated[list[str] | None, Query()] = None,
+    offset: int = 0,
+    who: WhoCookie = None,
+) -> Response:
+    """Return one page of rows for infinite scroll (HTMX revealed-trigger)."""
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slugs = _resolve_list_slugs(list)
+    active_mode = _resolve_mode(mode)
+    active_view = normalise_view(view)
+    states = normalise_states(state)
+    rows_all = build_rows(
+        user=user,
+        list_slugs=list_slugs,
+        mode=active_mode,
+        states=states,
+    )
+    ctx = _lists_context(
+        user=user,
+        list_slugs=list_slugs,
+        mode=active_mode,
+        view=active_view,
+        states=states,
+        offset=max(0, offset),
+        rows_all=rows_all,
+    )
+    return templates.TemplateResponse(request, "_lists_rows.html", ctx)
+
+
+def _resolve_row_list(slug: str) -> str:
+    """Validate a per-row list slug. Unlike _resolve_list, no fallback."""
+    available = {nl.slug for nl in list_available_lists()}
+    if slug not in available:
+        raise HTTPException(status_code=400, detail="Unknown list")
+    return slug
+
+
+def _render_row(
+    request: Request,
+    *,
+    user: str,
+    list_slug: str,
+    name: str,
+) -> HTMLResponse:
+    """Render the single-row partial after a per-row mutation."""
+    rows = build_rows(
+        user=user,
+        list_slugs=[list_slug],
+        mode=MODE_RANDOM,  # mode doesn't matter for a single-row lookup
+        states=list(ALL_STATES),
+    )
+    row = next((r for r in rows if r.name == name), None)
+    return templates.TemplateResponse(
+        request,
+        "_lists_row.html",
+        {"row": row, "list_slug": list_slug, "name": name},
+    )
+
+
+@app.post("/lists/swipe", response_class=HTMLResponse)
+def lists_swipe(
+    request: Request,
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    direction: Annotated[int, Form()],
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slug = _resolve_row_list(list)
+    if direction not in (LIKE, DISLIKE):
+        raise HTTPException(status_code=400, detail="bad direction")
+    clean = name.strip()
+    record(user, list_slug, clean, direction)
+    invalidate_decks(user, list_slug)
+    return _render_row(request, user=user, list_slug=list_slug, name=clean)
+
+
+@app.post("/lists/unswipe", response_class=HTMLResponse)
+def lists_unswipe(
+    request: Request,
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    user = user_or_redirect
+    list_slug = _resolve_row_list(list)
+    clean = name.strip()
+    remove_swipe(user, list_slug, clean)
+    return _render_row(request, user=user, list_slug=list_slug, name=clean)
+
+
+@app.post("/lists/delete", response_class=HTMLResponse)
+def lists_delete(
+    name: Annotated[str, Form()],
+    list: Annotated[str, Form(alias="list")],  # noqa: A002
+    who: WhoCookie = None,
+) -> HTMLResponse:
+    """Delete a manually-added name from a list (per-row delete button)."""
+    user_or_redirect = _user_or_redirect(who)
+    if isinstance(user_or_redirect, RedirectResponse):
+        raise HTTPException(status_code=401, detail="No user")
+    list_slug = _resolve_row_list(list)
+    clean = name.strip()
+    if remove_manual_name(list_slug, clean):
+        for u in USERS:
+            remove_swipe(u, list_slug, clean)
+        invalidate_list_decks(list_slug)
+    # HTMX swaps the row's outerHTML with this empty body -> row disappears.
+    return HTMLResponse("")
 
 
 @app.post("/add-name")

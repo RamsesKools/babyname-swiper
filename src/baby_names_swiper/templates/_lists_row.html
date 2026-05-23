@@ -1,0 +1,55 @@
+{# One row/card. Used by /lists (initial render + infinite-scroll batch) and
+   by /lists/swipe, /lists/unswipe (single-row swap). When `row` is None
+   (the name was deleted), this renders nothing -- the HTMX outerHTML swap
+   then makes the row disappear. #}
+{% if row %}
+<div class="lists-row state-{{ row.state }}"
+     {% if is_last is defined and is_last and next_offset is not none %}
+     hx-get="{{ next_rows_url }}"
+     hx-trigger="revealed"
+     hx-swap="afterend"
+     {% endif %}>
+    <span class="lists-row-name">{{ row.name }}</span>
+    <div class="lists-row-actions">
+        <button type="button"
+                class="lists-btn lists-btn-nope {% if row.state == 'dislike' %}is-active{% endif %}"
+                title="Nope"
+                hx-post="/lists/swipe"
+                hx-target="closest .lists-row"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ row.name }}", "list": "{{ row.source_list }}", "direction": 0}'>
+            Nope
+        </button>
+        <button type="button"
+                class="lists-btn lists-btn-undo {% if row.state == 'unswiped' %}is-active{% endif %}"
+                title="Undo"
+                hx-post="/lists/unswipe"
+                hx-target="closest .lists-row"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ row.name }}", "list": "{{ row.source_list }}"}'>
+            Undo
+        </button>
+        <button type="button"
+                class="lists-btn lists-btn-like {% if row.state == 'like' %}is-active{% endif %}"
+                title="Like"
+                hx-post="/lists/swipe"
+                hx-target="closest .lists-row"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ row.name }}", "list": "{{ row.source_list }}", "direction": 1}'>
+            Like
+        </button>
+        {% if row.is_manual %}
+        <button type="button"
+                class="lists-btn lists-btn-delete"
+                title="Delete {{ row.name }} from the list entirely"
+                hx-post="/lists/delete"
+                hx-target="closest .lists-row"
+                hx-swap="outerHTML"
+                hx-vals='{"name": "{{ row.name }}", "list": "{{ row.source_list }}"}'
+                hx-confirm="Delete '{{ row.name }}' from the list entirely? It was added manually and will be gone for good.">
+            &times;
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

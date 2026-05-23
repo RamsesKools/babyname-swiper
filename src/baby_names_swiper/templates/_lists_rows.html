@@ -1,0 +1,10 @@
+{# A page of rows. The last row of every page (except the final one) carries
+   an HTMX revealed-trigger that fetches the next page from /lists/rows. #}
+{% if active_view == 'table' and rows %}
+{# Table view: render an inner <table> on first batch only. Subsequent
+   batches are still <tr> rows that HTMX appends. #}
+{% endif %}
+{% for row in rows %}
+{% set is_last = loop.last and has_more %}
+{% include "_lists_row.html" %}
+{% endfor %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Name lists{% endblock %}
+{% block head_scripts %}
+<script src="/static/js/lists.js" defer></script>
+{% endblock %}
+{% block content %}
+{# All controls submit via a GET form -> full page reload, matching the
+   pattern used on the swipe page. The form's hidden state (current scroll
+   position, etc.) isn't preserved; that's fine since changing any control
+   meaningfully changes what's visible. #}
+<form id="lists-controls" class="lists-controls" method="get" action="/lists">
+    <fieldset class="lists-control">
+        <legend>Lists</legend>
+        <div class="lists-checkbox-row">
+            {% for nl in lists %}
+            <label class="lists-checkbox">
+                <input type="checkbox"
+                       name="list"
+                       value="{{ nl.slug }}"
+                       {% if nl.slug in selected_set %}checked{% endif %}>
+                <span>{{ nl.label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+    </fieldset>
+
+    <div class="lists-control-row">
+        <div class="lists-control">
+            <label for="lists-view">View</label>
+            <select id="lists-view" name="view">
+                <option value="card"  {% if active_view == 'card' %}selected{% endif %}>Card</option>
+                <option value="table" {% if active_view == 'table' %}selected{% endif %}>Table</option>
+            </select>
+        </div>
+        <div class="lists-control">
+            <label for="lists-mode">Sort</label>
+            <select id="lists-mode" name="mode">
+                <option value="random"        {% if active_mode == 'random' %}selected{% endif %}>random (weighted)</option>
+                <option value="alpha"         {% if active_mode == 'alpha' %}selected{% endif %}>alphabetical</option>
+                <option value="partner_likes" {% if active_mode == 'partner_likes' %}selected{% endif %}>partner likes only</option>
+            </select>
+        </div>
+        <fieldset class="lists-control lists-control-filter">
+            <legend>Filter</legend>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="like"
+                       {% if 'like' in active_states_set %}checked{% endif %}>
+                <span>likes</span>
+            </label>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="dislike"
+                       {% if 'dislike' in active_states_set %}checked{% endif %}>
+                <span>dislikes</span>
+            </label>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="unswiped"
+                       {% if 'unswiped' in active_states_set %}checked{% endif %}>
+                <span>unswiped</span>
+            </label>
+        </fieldset>
+    </div>
+</form>
+
+{% if not selected_slugs %}
+<p class="empty-note lists-empty">Select one or more lists above to start.</p>
+{% else %}
+<div class="lists-summary">
+    Showing <strong>{{ rows_total }}</strong>
+    {% if rows_total == 1 %}name{% else %}names{% endif %}
+    across {{ selected_slugs | length }}
+    {% if selected_slugs | length == 1 %}list{% else %}lists{% endif %}.
+</div>
+
+<div id="lists-body" class="lists-body lists-view-{{ active_view }}">
+    {% include "_lists_rows.html" with context %}
+</div>
+{% endif %}
+{% endblock %}

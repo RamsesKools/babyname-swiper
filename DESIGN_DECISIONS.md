@@ -153,6 +153,42 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - "Reset list" wipes both likes and dislikes for the current user and is confirmation-gated as irreversible.
 - It does not touch the other user's swipes or remove names from the list.
 
+## Name lists page
+
+### Entry point
+
+- The "overview" header item is a hover dropdown; clicking the trigger still goes to the existing summary page, while the dropdown panel adds the new "Name lists" entry.
+
+### List selection
+
+- The page lets the user check any combination of available lists (no default selection); names across selected lists are unioned and deduped case-insensitively.
+- An empty selection renders an empty body with a "Select one or more lists" hint, not a fallback to the first list.
+
+### View, sort, filter
+
+- A "View" selector toggles between Card (responsive grid) and Table (one-per-row dense list); Card is the default.
+- The "Sort" selector mirrors the swipe deck modes (random-weighted, alphabetical, partner-likes-only) so the same name order can be reviewed without context switching.
+- The "Filter" control is three independent checkboxes (likes / dislikes / unswiped), all on by default; the user can toggle any combination, and unchecking all yields an empty body.
+- Filtering is applied after sorting so the user's chosen ordering is preserved within each state bucket.
+
+### Loading
+
+- Rows load in batches via infinite scroll (HTMX revealed-trigger on the last row of each batch); no page-size control.
+
+### Per-row actions
+
+- Each row has a Nope / Undo / Like triple; the currently active state is highlighted so the row reads as its current decision.
+- The middle Undo button clears any swipe (like or dislike) for that name; it's the gray neutral state.
+- A red x delete button appears only on manually-added names and removes the name from the list entirely for both users (same semantics as the overview page's "delete").
+
+### Add-name affordance
+
+- The header's "Add single name" form is shown when exactly one list is selected and is hidden when zero or 2+ lists are selected (no ambiguous target).
+
+### Future extensions (not built yet)
+
+- Partner-state filters (partner liked / partner disliked / match) are intentionally left out of v1 but slot into the same Filter fieldset when added.
+
 ## Lists & storage
 
 ### Built-in vs uploaded lists

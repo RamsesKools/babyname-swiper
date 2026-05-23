@@ -90,6 +90,7 @@ python_test_report.xml
 .pytest_cache/
 pytest.log
 logs/
+tests/.tmp/
 
 # project-specific
 data/uploads/*

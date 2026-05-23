@@ -43,6 +43,28 @@ class Overview:
     remaining: int
 
 
+# state values returned by states_for(): the active user's swipe on a name.
+STATE_LIKE = "like"
+STATE_DISLIKE = "dislike"
+STATE_UNSWIPED = "unswiped"
+ALL_STATES = (STATE_LIKE, STATE_DISLIKE, STATE_UNSWIPED)
+
+
+def states_for(user: str, list_slug: str, names: list[str]) -> dict[str, str]:
+    """Return {name: state} for each input name. State is one of ALL_STATES."""
+    likes = _liked_by(user, list_slug)
+    dislikes = _disliked_by(user, list_slug)
+    out: dict[str, str] = {}
+    for n in names:
+        if n in likes:
+            out[n] = STATE_LIKE
+        elif n in dislikes:
+            out[n] = STATE_DISLIKE
+        else:
+            out[n] = STATE_UNSWIPED
+    return out
+
+
 # --------------------------------------------------------------------------- #
 #                              low-level queries                              #
 # --------------------------------------------------------------------------- #
@@ -206,6 +228,40 @@ def _seeded_weighted_order(
     return [name for _, name in keyed]
 
 
+def order_names(
+    pool: list[str],
+    mode: str,
+    *,
+    user: str,
+    list_slug: str,
+    reswipe_disliked: bool = False,
+) -> list[str]:
+    """Sort/filter an arbitrary pool of names using a deck mode.
+
+    Used by both the swipe deck builder and the lists review page. For
+    `MODE_PARTNER_LIKES` the pool is filtered down to names the partner liked;
+    for `MODE_RANDOM` the order is the seeded weighted shuffle (same seed key
+    the swipe deck uses, so a (user, list, random) view shares the swipe
+    deck's ordering bias toward partner-liked names).
+    """
+    if mode not in VALID_MODES:
+        mode = MODE_RANDOM
+
+    partner = _partner(user)
+    partner_likes: set[str] = _liked_by(partner, list_slug) if partner else set()
+    partner_dislikes: set[str] = _disliked_by(partner, list_slug) if partner else set()
+
+    if mode == MODE_PARTNER_LIKES:
+        pool = [n for n in pool if n in partner_likes]
+        return sorted(pool, key=str.casefold)
+
+    if mode == MODE_ALPHA:
+        return sorted(pool, key=str.casefold)
+
+    seed = _seed_for((user, list_slug, mode, reswipe_disliked))
+    return _seeded_weighted_order(pool, seed, partner_likes, partner_dislikes)
+
+
 def _build_order(
     user: str,
     list_slug: str,
@@ -226,21 +282,14 @@ def _build_order(
     if not reswipe_disliked:
         excluded |= my_dislikes
 
-    partner = _partner(user)
-    partner_likes: set[str] = _liked_by(partner, list_slug) if partner else set()
-    partner_dislikes: set[str] = _disliked_by(partner, list_slug) if partner else set()
-
-    if mode == MODE_PARTNER_LIKES:
-        pool = [n for n in partner_likes if n not in excluded]
-        return sorted(pool, key=str.casefold)
-
     pool = [n for n in all_names if n not in excluded]
-    if mode == MODE_ALPHA:
-        return sorted(pool, key=str.casefold)
-
-    # MODE_RANDOM: fixed weighted-random order
-    seed = _seed_for((user, list_slug, mode, reswipe_disliked))
-    return _seeded_weighted_order(pool, seed, partner_likes, partner_dislikes)
+    return order_names(
+        pool,
+        mode,
+        user=user,
+        list_slug=list_slug,
+        reswipe_disliked=reswipe_disliked,
+    )
 
 
 def get_deck(
