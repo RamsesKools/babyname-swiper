@@ -50,6 +50,24 @@ Deck order is fixed for the lifetime of the process. The cursor is **reconciled*
 
 `is_match(user, list, name)` checks both users have a `LIKE` row. `POST /swipe` only flags `new_match` when the *current* swipe is the one that completes the pair (direction == LIKE and partner already liked it). The template then renders the match modal via `_match_preview.html`.
 
+## Design decisions log
+
+[DESIGN_DECISIONS.md](DESIGN_DECISIONS.md) is the source of truth for UX and product behaviour. Read it before changing anything user-facing -- the code shows *what* happens, the log shows *why it was chosen* and what alternatives have been considered or ruled out.
+
+How to use it:
+
+- Before changing user-facing behaviour, check the relevant section to see if a decision already constrains the change.
+- If a change contradicts an existing entry, treat that as a real conflict: confirm with the user before proceeding, and update or remove the stale entry as part of the same change.
+- Group entries under the matching `##` section; add a new section only when no existing one fits.
+- Keep each entry to one short sentence focused on intent / behaviour. Skip implementation details, pixel values, framework choices, and anything obvious from reading the code.
+
+After every task, the agent must:
+
+1. Re-read [DESIGN_DECISIONS.md](DESIGN_DECISIONS.md).
+2. Identify any new user-facing decisions made during the task -- defaults chosen, edge cases handled deliberately, behaviours added or changed, alternatives rejected.
+3. Add them to the appropriate section (or update existing entries that are now stale) before reporting the task as done.
+4. If nothing user-facing changed, say so explicitly rather than skipping the step silently.
+
 ## Conventions
 
 - Python 3.13, strict mypy. Tests have relaxed mypy (`disallow_incomplete_defs = false`).
