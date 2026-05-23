@@ -30,7 +30,7 @@ def test_build_rows_empty_when_no_lists_selected():
     rows = build_rows(
         user="Ramses",
         list_slugs=[],
-        mode="alpha",
+        order="alpha",
         states=["like", "dislike", "unswiped"],
     )
     assert rows == []
@@ -43,7 +43,7 @@ def test_build_rows_decorates_states():
     rows = build_rows(
         user="Ramses",
         list_slugs=["boys"],
-        mode="alpha",
+        order="alpha",
         states=["like", "dislike", "unswiped"],
     )
     states = {r.name: r.state for r in rows}
@@ -56,7 +56,7 @@ def test_build_rows_dedupes_union_across_lists():
     rows = build_rows(
         user="Ramses",
         list_slugs=["boys", "unisex"],
-        mode="alpha",
+        order="alpha",
         states=["like", "dislike", "unswiped"],
     )
     names = [r.name for r in rows]
@@ -70,19 +70,19 @@ def test_build_rows_filter_by_state_keeps_only_requested():
     likes_only = build_rows(
         user="Ramses",
         list_slugs=["boys"],
-        mode="alpha",
+        order="alpha",
         states=["like"],
     )
     assert [r.name for r in likes_only] == ["Aaron"]
 
 
-def test_build_rows_random_mode_pins_manual_names_to_end():
+def test_build_rows_random_order_pins_manual_names_to_end():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
     add_manual_name("boys", "Zenith")
     rows = build_rows(
         user="Ramses",
         list_slugs=["boys"],
-        mode="random",
+        order="random",
         states=["like", "dislike", "unswiped"],
     )
     names = [r.name for r in rows]
@@ -98,7 +98,7 @@ def test_build_rows_marks_manual_names():
     rows = build_rows(
         user="Ramses",
         list_slugs=["boys"],
-        mode="alpha",
+        order="alpha",
         states=["like", "dislike", "unswiped"],
     )
     by_name = {r.name: r for r in rows}
@@ -121,7 +121,7 @@ def test_lists_page_renders_empty_when_nothing_selected():
 
 def test_lists_page_lists_names_for_selected_list():
     _seed_list("boys", ["Aaron", "Bram"])
-    r = _client_for("Ramses").get("/lists", params={"list": "boys", "mode": "alpha"})
+    r = _client_for("Ramses").get("/lists", params={"list": "boys", "order": "alpha"})
     assert r.status_code == 200
     # both names appear in the rendered body
     assert "Aaron" in r.text
@@ -134,7 +134,7 @@ def test_lists_page_filter_only_likes():
     record("Ramses", "boys", "Bram", DISLIKE)
     r = _client_for("Ramses").get(
         "/lists",
-        params=[("list", "boys"), ("mode", "alpha"), ("state", "like")],
+        params=[("list", "boys"), ("order", "alpha"), ("state", "like")],
     )
     assert r.status_code == 200
     assert "Aaron" in r.text
@@ -202,7 +202,7 @@ def test_lists_rows_paginates_with_next_offset():
     big = [f"Name{i:03d}" for i in range(120)]
     _seed_list("boys", big)
     client = _client_for("Ramses")
-    r = client.get("/lists", params={"list": "boys", "mode": "alpha"})
+    r = client.get("/lists", params={"list": "boys", "order": "alpha"})
     assert r.status_code == 200
     # The infinite-scroll trigger references the next batch URL.
     assert "/lists/rows" in r.text
@@ -210,7 +210,7 @@ def test_lists_rows_paginates_with_next_offset():
 
     r2 = client.get(
         "/lists/rows",
-        params={"list": "boys", "mode": "alpha", "offset": "50"},
+        params={"list": "boys", "order": "alpha", "offset": "50"},
     )
     assert r2.status_code == 200
     # Page 2 starts with Name050 and references offset=100 for page 3

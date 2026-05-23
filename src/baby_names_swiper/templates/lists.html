@@ -33,17 +33,17 @@
             </select>
         </div>
         <div class="lists-control">
-            <label for="lists-mode">Sort</label>
-            <select id="lists-mode" name="mode">
-                <option value="random"        {% if active_mode == 'random' %}selected{% endif %}>random (weighted)</option>
-                <option value="alpha"         {% if active_mode == 'alpha' %}selected{% endif %}>alphabetical</option>
-                <option value="partner_likes" {% if active_mode == 'partner_likes' %}selected{% endif %}>partner likes only</option>
+            <label for="lists-order">order</label>
+            <select id="lists-order" name="order">
+                <option value="random"        {% if active_order == 'random' %}selected{% endif %}>random (weighted)</option>
+                <option value="alpha"         {% if active_order == 'alpha' %}selected{% endif %}>alphabetical</option>
+                <option value="partner_likes" {% if active_order == 'partner_likes' %}selected{% endif %}>partner likes only</option>
             </select>
             {# Carries the current shuffle token across normal control changes
                (so toggling a filter doesn't accidentally reshuffle). The
                reshuffle button rewrites this value to a fresh token. #}
             <input type="hidden" id="lists-shuffle" name="shuffle" value="{{ active_shuffle }}">
-            {% if active_mode == 'random' %}
+            {% if active_order == 'random' %}
             <button type="button" id="lists-reshuffle" class="lists-reshuffle-btn">reshuffle</button>
             {% endif %}
         </div>

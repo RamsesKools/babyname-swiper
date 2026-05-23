@@ -97,17 +97,18 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 ### Mode and list switching
 
-- Changing list, mode, or the reswipe checkbox triggers a full page reload (no in-place swap).
+- Changing list, order, or the reswipe checkbox triggers a full page reload (no in-place swap).
 - An unknown list slug falls back silently to the first available list rather than 404'ing.
 
 ## Deck composition
 
-### Modes
+### Orders
 
+- The "order" control on the swipe page (and the matching control on /lists) chooses how the pool is sequenced: random, alpha, or partner-likes-only.
 - "random" weights the shuffle: names the partner liked are 5x more likely to show, names the partner disliked 5x less likely.
 - "alpha" shows names case-folded A-Z.
 - "partner likes only" filters the deck to names the partner liked and then sorts alphabetically.
-- The random shuffle is seeded per (user, list, mode) so the order is stable across reloads in the same session.
+- The random shuffle is seeded per (user, list, order) so the order is stable across reloads in the same session.
 
 ### Reswipe
 
@@ -146,7 +147,7 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 ### Quick actions
 
-- The "partner likes" section has a shortcut link straight to swipe mode "partner likes only".
+- The "partner likes" section has a shortcut link straight to the swipe page in "partner likes only" order.
 - Each section header has a destructive action (reset that section) styled in red and gated by a confirmation prompt.
 
 ### Removing vs deleting names
@@ -172,14 +173,14 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - The page lets the user check any combination of available lists (no default selection); names across selected lists are unioned and deduped case-insensitively.
 - An empty selection renders an empty body with a "Select one or more lists" hint, not a fallback to the first list.
 
-### View, sort, filter
+### View, order, filter
 
 - A "View" selector toggles between Card (responsive grid) and Table (one-per-row dense list); Card is the default.
-- The "Sort" selector mirrors the swipe deck modes (random-weighted, alphabetical, partner-likes-only) so the same name order can be reviewed without context switching.
-- A "reshuffle" button appears next to the Sort selector only when sort is random; clicking it picks a fresh shuffle for the current selection without affecting the swipe deck's order.
-- The shuffle token rides in the URL so the reshuffled order is stable across infinite-scroll pagination, refreshes, and changes to other controls; it resets when the user clicks reshuffle again or switches sort mode.
+- The "order" selector mirrors the swipe page's order options (random-weighted, alphabetical, partner-likes-only) so the same name sequence can be reviewed without context switching.
+- A "reshuffle" button appears next to the order selector only when order is random; clicking it picks a fresh shuffle for the current selection without affecting the swipe deck's order.
+- The shuffle token rides in the URL so the reshuffled order is stable across infinite-scroll pagination, refreshes, and changes to other controls; it resets when the user clicks reshuffle again or switches order.
 - The "Filter" control is three independent checkboxes (likes / dislikes / unswiped), all on by default; the user can toggle any combination, and unchecking all yields an empty body.
-- Filtering is applied after sorting so the user's chosen ordering is preserved within each state bucket.
+- Filtering is applied after ordering so the user's chosen sequence is preserved within each state bucket.
 
 ### Loading
 

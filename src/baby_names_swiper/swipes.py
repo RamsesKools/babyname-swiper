@@ -1,6 +1,6 @@
 """Swipe state: record, query, undo, and the in-memory swipe deck.
 
-The deck gives each (user, list, mode, reswipe) combination a *fixed* order of
+The deck gives each (user, list, order, reswipe) combination a *fixed* order of
 names. It lives in memory only: on a process restart the deck is rebuilt from
 the unswiped pool (swipe history itself is persisted in SQLite, so nothing is
 lost — only the exact ordering of yet-unseen names is regenerated).
@@ -20,13 +20,13 @@ from baby_names_swiper.names import load_names
 LIKE = 1
 DISLIKE = 0
 
-# next-name modes
-MODE_RANDOM = "random"
-MODE_ALPHA = "alpha"
-MODE_PARTNER_LIKES = "partner_likes"
-VALID_MODES = (MODE_RANDOM, MODE_ALPHA, MODE_PARTNER_LIKES)
+# next-name orders
+ORDER_RANDOM = "random"
+ORDER_ALPHA = "alpha"
+ORDER_PARTNER_LIKES = "partner_likes"
+VALID_ORDERS = (ORDER_RANDOM, ORDER_ALPHA, ORDER_PARTNER_LIKES)
 
-# weighting for MODE_RANDOM: relative selection weights
+# weighting for ORDER_RANDOM: relative selection weights
 WEIGHT_PARTNER_LIKE = 5.0  # 5x more likely than a neutral name
 WEIGHT_NEUTRAL = 1.0
 WEIGHT_PARTNER_DISLIKE = 0.2  # 5x less likely than a neutral name
@@ -144,7 +144,7 @@ def undo_last(user: str, list_slug: str) -> str | None:
 #                                  the deck                                   #
 # --------------------------------------------------------------------------- #
 
-DeckKey = tuple[str, str, str, bool]  # (user, list_slug, mode, reswipe)
+DeckKey = tuple[str, str, str, bool]  # (user, list_slug, order, reswipe)
 
 
 @dataclass
@@ -181,7 +181,7 @@ class Deck:
         """Skip the cursor forward past any name that has already been swiped.
 
         Handles two cases: a process restart (deck rebuilt, cursor at 0) and
-        the same name swiped via a different deck (mode/list switch).
+        the same name swiped via a different deck (order/list switch).
         """
         while self.position < len(self.names) and self.names[self.position] in swiped:
             self.position += 1
@@ -233,47 +233,47 @@ def _seeded_weighted_order(
 
 def order_names(
     pool: list[str],
-    mode: str,
+    order: str,
     *,
     user: str,
     list_slug: str,
     reswipe_disliked: bool = False,
     shuffle: str | None = None,
 ) -> list[str]:
-    """Sort/filter an arbitrary pool of names using a deck mode.
+    """Sort/filter an arbitrary pool of names using a deck order.
 
     Used by both the swipe deck builder and the lists review page. For
-    `MODE_PARTNER_LIKES` the pool is filtered down to names the partner liked;
-    for `MODE_RANDOM` the order is the seeded weighted shuffle (same seed key
+    `ORDER_PARTNER_LIKES` the pool is filtered down to names the partner liked;
+    for `ORDER_RANDOM` the result is the seeded weighted shuffle (same seed key
     the swipe deck uses, so a (user, list, random) view shares the swipe
     deck's ordering bias toward partner-liked names).
 
     `shuffle` is an optional extra entropy token mixed into the random seed
-    (only used for `MODE_RANDOM`). The /lists page passes a fresh token when
+    (only used for `ORDER_RANDOM`). The /lists page passes a fresh token when
     the user clicks "reshuffle" so the same pool gets a new order.
     """
-    if mode not in VALID_MODES:
-        mode = MODE_RANDOM
+    if order not in VALID_ORDERS:
+        order = ORDER_RANDOM
 
     partner = _partner(user)
     partner_likes: set[str] = _liked_by(partner, list_slug) if partner else set()
     partner_dislikes: set[str] = _disliked_by(partner, list_slug) if partner else set()
 
-    if mode == MODE_PARTNER_LIKES:
+    if order == ORDER_PARTNER_LIKES:
         pool = [n for n in pool if n in partner_likes]
         return sorted(pool, key=str.casefold)
 
-    if mode == MODE_ALPHA:
+    if order == ORDER_ALPHA:
         return sorted(pool, key=str.casefold)
 
-    seed = _seed_for((user, list_slug, mode, reswipe_disliked), shuffle=shuffle)
+    seed = _seed_for((user, list_slug, order, reswipe_disliked), shuffle=shuffle)
     return _seeded_weighted_order(pool, seed, partner_likes, partner_dislikes)
 
 
 def _build_order(
     user: str,
     list_slug: str,
-    mode: str,
+    order: str,
     *,
     reswipe_disliked: bool,
 ) -> list[str]:
@@ -293,7 +293,7 @@ def _build_order(
     pool = [n for n in all_names if n not in excluded]
     return order_names(
         pool,
-        mode,
+        order,
         user=user,
         list_slug=list_slug,
         reswipe_disliked=reswipe_disliked,
@@ -304,7 +304,7 @@ def get_deck(
     user: str,
     list_slug: str,
     *,
-    mode: str = MODE_RANDOM,
+    order: str = ORDER_RANDOM,
     reswipe_disliked: bool = False,
 ) -> Deck:
     """Return the cached deck for this combination, building it if needed.
@@ -312,19 +312,19 @@ def get_deck(
     The deck's order is fixed once built. The cursor is reconciled against the
     current swipe history so it always points at a genuinely unseen name.
     """
-    if mode not in VALID_MODES:
-        mode = MODE_RANDOM
-    key: DeckKey = (user, list_slug, mode, reswipe_disliked)
+    if order not in VALID_ORDERS:
+        order = ORDER_RANDOM
+    key: DeckKey = (user, list_slug, order, reswipe_disliked)
 
     deck = _decks.get(key)
     if deck is None:
-        order = _build_order(
+        names = _build_order(
             user,
             list_slug,
-            mode,
+            order,
             reswipe_disliked=reswipe_disliked,
         )
-        deck = Deck(names=order)
+        deck = Deck(names=names)
         _decks[key] = deck
 
     swiped = _liked_by(user, list_slug) | _disliked_by(user, list_slug)
@@ -374,8 +374,8 @@ def absorb_added_name(list_slug: str, name: str) -> None:
     for key, deck in list(_decks.items()):
         if key[1] != list_slug:
             continue
-        mode = key[2]
-        if mode == MODE_RANDOM:
+        order = key[2]
+        if order == ORDER_RANDOM:
             if name not in deck.names:
                 deck.names.append(name)
         else:

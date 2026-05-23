@@ -13,11 +13,11 @@
         </select>
     </div>
     <div class="control">
-        <label for="mode-picker">mode</label>
-        <select id="mode-picker" name="mode" data-control="mode">
-            <option value="random"        {% if active_mode == 'random' %}selected{% endif %}>random (weighted)</option>
-            <option value="alpha"         {% if active_mode == 'alpha' %}selected{% endif %}>alphabetical</option>
-            <option value="partner_likes" {% if active_mode == 'partner_likes' %}selected{% endif %}>partner likes only</option>
+        <label for="order-picker">order</label>
+        <select id="order-picker" name="order" data-control="order">
+            <option value="random"        {% if active_order == 'random' %}selected{% endif %}>random (weighted)</option>
+            <option value="alpha"         {% if active_order == 'alpha' %}selected{% endif %}>alphabetical</option>
+            <option value="partner_likes" {% if active_order == 'partner_likes' %}selected{% endif %}>partner likes only</option>
         </select>
     </div>
     <div class="control control-checkbox">

@@ -79,7 +79,7 @@ body {
     color: var(--c-text);
 }
 
-/* --- swipe controls (list / mode / reswipe) --- */
+/* --- swipe controls (list / order / reswipe) --- */
 .swipe-controls {
     display: flex;
     flex-wrap: wrap;

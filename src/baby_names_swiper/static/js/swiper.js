@@ -37,7 +37,7 @@ function deckConfig() {
     if (!d) return null;
     return {
         list: d.dataset.list,
-        mode: d.dataset.mode || "random",
+        order: d.dataset.order || "random",
         reswipe: d.dataset.reswipe || "0",
     };
 }
@@ -123,7 +123,7 @@ function swipeBody(direction, swipedName, cfg) {
         name: swipedName,
         direction: direction === "like" ? "1" : "0",
         list: cfg.list,
-        mode: cfg.mode,
+        order: cfg.order,
         reswipe: cfg.reswipe,
     });
 }
@@ -181,7 +181,7 @@ function commitLastSwipe(direction, swipedName, cfg) {
             const el = frag.querySelector("[data-match-name]");
             matchName = el ? el.getAttribute("data-match-name") : null;
             return fetch(`/swipe?list=${encodeURIComponent(cfg.list)}`
-                + `&mode=${encodeURIComponent(cfg.mode)}`
+                + `&order=${encodeURIComponent(cfg.order)}`
                 + `&reswipe=${encodeURIComponent(cfg.reswipe)}`);
         })
         .then((r) => r.text())
@@ -209,7 +209,7 @@ function undo() {
     if (!cfg) return;
     const body = new URLSearchParams({
         list: cfg.list,
-        mode: cfg.mode,
+        order: cfg.order,
         reswipe: cfg.reswipe,
     });
     fetch("/swipe/undo", {
@@ -247,7 +247,7 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-// ---- swipe controls (list / mode / reswipe) reload the page on change ----
+// ---- swipe controls (list / order / reswipe) reload the page on change ----
 
 document.addEventListener("change", (event) => {
     const target = event.target;

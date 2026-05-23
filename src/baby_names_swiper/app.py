@@ -28,8 +28,8 @@ from baby_names_swiper.swipes import (
     ALL_STATES,
     DISLIKE,
     LIKE,
-    MODE_RANDOM,
-    VALID_MODES,
+    ORDER_RANDOM,
+    VALID_ORDERS,
     absorb_added_name,
     get_deck,
     invalidate_decks,
@@ -85,10 +85,10 @@ def _resolve_list(slug: str | None) -> str:
     return available[0].slug
 
 
-def _resolve_mode(mode: str | None) -> str:
-    if mode in VALID_MODES:
-        return mode
-    return MODE_RANDOM
+def _resolve_order(order: str | None) -> str:
+    if order in VALID_ORDERS:
+        return order
+    return ORDER_RANDOM
 
 
 @app.get("/healthz")
@@ -138,7 +138,7 @@ def _deck_context(
     *,
     user: str,
     list_slug: str,
-    active_mode: str,
+    active_order: str,
     reswipe_flag: bool,
     current: str | None,
     lookahead: str | None,
@@ -146,7 +146,7 @@ def _deck_context(
     return {
         "user": user,
         "active_list": list_slug,
-        "active_mode": active_mode,
+        "active_order": active_order,
         "reswipe": reswipe_flag,
         "current_name": current,
         "next_name": lookahead,
@@ -157,7 +157,7 @@ def _deck_context(
 def swipe_page(
     request: Request,
     list: str | None = None,  # noqa: A002
-    mode: str | None = None,
+    order: str | None = None,
     reswipe: int = 0,
     who: WhoCookie = None,
 ) -> Response:
@@ -166,15 +166,15 @@ def swipe_page(
         return user_or_redirect
     user = user_or_redirect
     list_slug = _resolve_list(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
-    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
+    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
     ctx: dict[str, object] = {
         "lists": list_available_lists(),
         **_deck_context(
             user=user,
             list_slug=list_slug,
-            active_mode=active_mode,
+            active_order=active_order,
             reswipe_flag=reswipe_flag,
             current=deck.current(),
             lookahead=deck.lookahead(),
@@ -189,7 +189,7 @@ def post_swipe(
     name: Annotated[str, Form()],
     direction: Annotated[int, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
-    mode: Annotated[str | None, Form()] = None,
+    order: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
@@ -207,7 +207,7 @@ def post_swipe(
     if direction not in (LIKE, DISLIKE):
         raise HTTPException(status_code=400, detail="bad direction")
     list_slug = _resolve_list(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
 
     swiped_name = name.strip()
@@ -215,14 +215,14 @@ def post_swipe(
     # a new match exists only when this swipe was a like and the partner had
     # already liked the same name
     new_match = direction == LIKE and is_match(user, list_slug, swiped_name)
-    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
+    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
 
     lookahead = deck.lookahead()
     template = "_card_next.html" if lookahead else "_card_next_empty.html"
     ctx = _deck_context(
         user=user,
         list_slug=list_slug,
-        active_mode=active_mode,
+        active_order=active_order,
         reswipe_flag=reswipe_flag,
         current=deck.current(),
         lookahead=lookahead,
@@ -235,7 +235,7 @@ def post_swipe(
 def post_undo(
     request: Request,
     list: Annotated[str, Form(alias="list")],  # noqa: A002
-    mode: Annotated[str | None, Form()] = None,
+    order: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> HTMLResponse:
@@ -244,11 +244,11 @@ def post_undo(
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
     list_slug = _resolve_list(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
 
     restored = undo_last(user, list_slug)
-    deck = get_deck(user, list_slug, mode=active_mode, reswipe_disliked=reswipe_flag)
+    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
     if restored:
         deck.rewind()
     return templates.TemplateResponse(
@@ -257,7 +257,7 @@ def post_undo(
         _deck_context(
             user=user,
             list_slug=list_slug,
-            active_mode=active_mode,
+            active_order=active_order,
             reswipe_flag=reswipe_flag,
             current=deck.current(),
             lookahead=deck.lookahead(),
@@ -393,7 +393,7 @@ def _lists_context(
     *,
     user: str,
     list_slugs: list[str],
-    mode: str,
+    order: str,
     view: str,
     states: list[str],
     offset: int,
@@ -412,7 +412,7 @@ def _lists_context(
     next_rows_url: str | None = None
     if next_offset is not None:
         params: list[tuple[str, str]] = [("list", s) for s in list_slugs]
-        params.append(("mode", mode))
+        params.append(("order", order))
         params.append(("view", view))
         params.extend(("state", st) for st in states)
         if shuffle:
@@ -424,7 +424,7 @@ def _lists_context(
         "lists": list_available_lists(),
         "selected_slugs": list_slugs,
         "selected_set": set(list_slugs),
-        "active_mode": mode,
+        "active_order": order,
         "active_view": view,
         "active_states": states,
         "active_states_set": set(states),
@@ -441,9 +441,9 @@ def _lists_context(
     }
 
 
-def _normalise_shuffle(value: str | None, *, mode: str) -> str | None:
-    """Keep `shuffle` only in random mode and clamp to a sane length."""
-    if mode != MODE_RANDOM or not value:
+def _normalise_shuffle(value: str | None, *, order: str) -> str | None:
+    """Keep `shuffle` only in random order and clamp to a sane length."""
+    if order != ORDER_RANDOM or not value:
         return None
     return value[:32]
 
@@ -452,7 +452,7 @@ def _normalise_shuffle(value: str | None, *, mode: str) -> str | None:
 def lists_page(
     request: Request,
     list: Annotated[list[str] | None, Query()] = None,  # noqa: A002
-    mode: str | None = None,
+    order: str | None = None,
     view: str | None = None,
     state: Annotated[list[str] | None, Query()] = None,
     shuffle: str | None = None,
@@ -463,21 +463,21 @@ def lists_page(
         return user_or_redirect
     user = user_or_redirect
     list_slugs = _resolve_list_slugs(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     active_view = normalise_view(view)
     states = normalise_states(state)
-    active_shuffle = _normalise_shuffle(shuffle, mode=active_mode)
+    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
-        mode=active_mode,
+        order=active_order,
         states=states,
         shuffle=active_shuffle,
     )
     ctx = _lists_context(
         user=user,
         list_slugs=list_slugs,
-        mode=active_mode,
+        order=active_order,
         view=active_view,
         states=states,
         offset=0,
@@ -491,7 +491,7 @@ def lists_page(
 def lists_rows(
     request: Request,
     list: Annotated[list[str] | None, Query()] = None,  # noqa: A002
-    mode: str | None = None,
+    order: str | None = None,
     view: str | None = None,
     state: Annotated[list[str] | None, Query()] = None,
     shuffle: str | None = None,
@@ -504,21 +504,21 @@ def lists_rows(
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
     list_slugs = _resolve_list_slugs(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     active_view = normalise_view(view)
     states = normalise_states(state)
-    active_shuffle = _normalise_shuffle(shuffle, mode=active_mode)
+    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
-        mode=active_mode,
+        order=active_order,
         states=states,
         shuffle=active_shuffle,
     )
     ctx = _lists_context(
         user=user,
         list_slugs=list_slugs,
-        mode=active_mode,
+        order=active_order,
         view=active_view,
         states=states,
         offset=max(0, offset),
@@ -547,7 +547,7 @@ def _render_row(
     rows = build_rows(
         user=user,
         list_slugs=[list_slug],
-        mode=MODE_RANDOM,  # mode doesn't matter for a single-row lookup
+        order=ORDER_RANDOM,  # order doesn't matter for a single-row lookup
         states=list(ALL_STATES),
     )
     row = next((r for r in rows if r.name == name), None)
@@ -621,7 +621,7 @@ def add_name(
     request: Request,
     name: Annotated[str, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
-    mode: Annotated[str | None, Form()] = None,
+    order: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> RedirectResponse:
@@ -631,7 +631,7 @@ def add_name(
         return user_or_redirect
     user = user_or_redirect
     list_slug = _resolve_list(list)
-    active_mode = _resolve_mode(mode)
+    active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
     # If the name already exists in the list, don't add it again -- but still
     # record a LIKE for the current user, so the action is never a no-op from
@@ -668,7 +668,7 @@ def add_name(
     # Referer when it's same-origin (path-only), falling back to /swipe.
     target = _same_origin_path(request, request.headers.get("referer"))
     if target is None:
-        target = f"/swipe?list={list_slug}&mode={active_mode}"
+        target = f"/swipe?list={list_slug}&order={active_order}"
         if reswipe_flag:
             target += "&reswipe=1"
     # Flag the redirect so the header can re-open the "Add name(s)" panel,

@@ -41,8 +41,8 @@
                 <li class="add-name-form-wrap" hidden>
                     <form class="add-name-form" method="post" action="/add-name">
                         <input type="hidden" name="list" value="{{ active_list }}">
-                        {% if active_mode is defined and active_mode %}
-                        <input type="hidden" name="mode" value="{{ active_mode }}">
+                        {% if active_order is defined and active_order %}
+                        <input type="hidden" name="order" value="{{ active_order }}">
                         {% endif %}
                         {% if reswipe is defined and reswipe %}
                         <input type="hidden" name="reswipe" value="1">

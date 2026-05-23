@@ -1,6 +1,6 @@
 <div id="deck"
      data-list="{{ active_list }}"
-     data-mode="{{ active_mode if active_mode is defined else 'random' }}"
+     data-order="{{ active_order if active_order is defined else 'random' }}"
      data-reswipe="{{ 1 if (reswipe is defined and reswipe) else 0 }}">
     {% if current_name %}
     <div class="card-stack" id="card-stack">

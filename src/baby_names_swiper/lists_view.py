@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from baby_names_swiper.names import load_manual_names, load_names
-from baby_names_swiper.swipes import ALL_STATES, MODE_RANDOM, order_names, states_for
+from baby_names_swiper.swipes import ALL_STATES, ORDER_RANDOM, order_names, states_for
 
 # query-param defaults / valid sets
 VIEW_CARD = "card"
@@ -68,7 +68,7 @@ def build_rows(
     *,
     user: str,
     list_slugs: list[str],
-    mode: str,
+    order: str,
     states: list[str],
     reswipe_disliked: bool = False,
     shuffle: str | None = None,
@@ -77,8 +77,8 @@ def build_rows(
 
     Sort first, then filter by state, so the user's chosen ordering is
     preserved within each state bucket. The order_names() helper is called
-    with the first selected list's slug as the seed key for MODE_RANDOM --
-    that's deterministic per (user, list_slugs[0], mode) so a reload returns
+    with the first selected list's slug as the seed key for ORDER_RANDOM --
+    that's deterministic per (user, list_slugs[0], order) so a reload returns
     the same order.
     """
     if not list_slugs:
@@ -98,7 +98,7 @@ def build_rows(
     # documented choice rather than a bug.
     seed_slug = list_slugs[0]
 
-    if mode == MODE_RANDOM:
+    if order == ORDER_RANDOM:
         # Manual-added names go to the end of the random order (alphabetical
         # among themselves) so that adding a name doesn't reshuffle the user's
         # current view -- they'll just see the new entry appear at the bottom
@@ -108,7 +108,7 @@ def build_rows(
         manual_pool = [n for n in pool if n.casefold() in manual_keys]
         ordered = order_names(
             base_pool,
-            mode,
+            order,
             user=user,
             list_slug=seed_slug,
             reswipe_disliked=reswipe_disliked,
@@ -118,7 +118,7 @@ def build_rows(
     else:
         ordered = order_names(
             pool,
-            mode,
+            order,
             user=user,
             list_slug=seed_slug,
             reswipe_disliked=reswipe_disliked,
