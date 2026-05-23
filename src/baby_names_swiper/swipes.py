@@ -190,8 +190,11 @@ class Deck:
 _decks: dict[DeckKey, Deck] = {}
 
 
-def _seed_for(key: DeckKey) -> int:
-    raw = "\x1f".join([key[0], key[1], key[2], "1" if key[3] else "0"])
+def _seed_for(key: DeckKey, *, shuffle: str | None = None) -> int:
+    parts = [key[0], key[1], key[2], "1" if key[3] else "0"]
+    if shuffle:
+        parts.append(shuffle)
+    raw = "\x1f".join(parts)
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return int(digest[:16], 16)
 
@@ -235,6 +238,7 @@ def order_names(
     user: str,
     list_slug: str,
     reswipe_disliked: bool = False,
+    shuffle: str | None = None,
 ) -> list[str]:
     """Sort/filter an arbitrary pool of names using a deck mode.
 
@@ -243,6 +247,10 @@ def order_names(
     for `MODE_RANDOM` the order is the seeded weighted shuffle (same seed key
     the swipe deck uses, so a (user, list, random) view shares the swipe
     deck's ordering bias toward partner-liked names).
+
+    `shuffle` is an optional extra entropy token mixed into the random seed
+    (only used for `MODE_RANDOM`). The /lists page passes a fresh token when
+    the user clicks "reshuffle" so the same pool gets a new order.
     """
     if mode not in VALID_MODES:
         mode = MODE_RANDOM
@@ -258,7 +266,7 @@ def order_names(
     if mode == MODE_ALPHA:
         return sorted(pool, key=str.casefold)
 
-    seed = _seed_for((user, list_slug, mode, reswipe_disliked))
+    seed = _seed_for((user, list_slug, mode, reswipe_disliked), shuffle=shuffle)
     return _seeded_weighted_order(pool, seed, partner_likes, partner_dislikes)
 
 

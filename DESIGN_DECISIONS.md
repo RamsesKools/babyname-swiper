@@ -176,6 +176,8 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 - A "View" selector toggles between Card (responsive grid) and Table (one-per-row dense list); Card is the default.
 - The "Sort" selector mirrors the swipe deck modes (random-weighted, alphabetical, partner-likes-only) so the same name order can be reviewed without context switching.
+- A "reshuffle" button appears next to the Sort selector only when sort is random; clicking it picks a fresh shuffle for the current selection without affecting the swipe deck's order.
+- The shuffle token rides in the URL so the reshuffled order is stable across infinite-scroll pagination, refreshes, and changes to other controls; it resets when the user clicks reshuffle again or switches sort mode.
 - The "Filter" control is three independent checkboxes (likes / dislikes / unswiped), all on by default; the user can toggle any combination, and unchecking all yields an empty body.
 - Filtering is applied after sorting so the user's chosen ordering is preserved within each state bucket.
 

@@ -71,6 +71,7 @@ def build_rows(
     mode: str,
     states: list[str],
     reswipe_disliked: bool = False,
+    shuffle: str | None = None,
 ) -> list[NameRow]:
     """Build the full ordered, filtered list of NameRow for the page.
 
@@ -111,6 +112,7 @@ def build_rows(
             user=user,
             list_slug=seed_slug,
             reswipe_disliked=reswipe_disliked,
+            shuffle=shuffle,
         )
         ordered.extend(sorted(manual_pool, key=str.casefold))
     else:

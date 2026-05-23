@@ -805,6 +805,25 @@ body {
     cursor: pointer;
 }
 
+.lists-reshuffle-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0.7rem;
+    border: 0.5px solid var(--c-border-strong);
+    border-radius: var(--r);
+    background: var(--c-surface);
+    color: var(--c-text);
+    cursor: pointer;
+}
+
+.lists-reshuffle-btn:hover {
+    background: var(--c-surface-hover, var(--c-surface));
+    border-color: var(--c-blue);
+    color: var(--c-blue);
+}
+
 .lists-control-filter {
     display: flex;
     align-items: center;

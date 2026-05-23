@@ -39,6 +39,13 @@
                 <option value="alpha"         {% if active_mode == 'alpha' %}selected{% endif %}>alphabetical</option>
                 <option value="partner_likes" {% if active_mode == 'partner_likes' %}selected{% endif %}>partner likes only</option>
             </select>
+            {# Carries the current shuffle token across normal control changes
+               (so toggling a filter doesn't accidentally reshuffle). The
+               reshuffle button rewrites this value to a fresh token. #}
+            <input type="hidden" id="lists-shuffle" name="shuffle" value="{{ active_shuffle }}">
+            {% if active_mode == 'random' %}
+            <button type="button" id="lists-reshuffle" class="lists-reshuffle-btn">reshuffle</button>
+            {% endif %}
         </div>
         <fieldset class="lists-control lists-control-filter">
             <legend>Filter</legend>

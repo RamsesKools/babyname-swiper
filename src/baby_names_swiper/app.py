@@ -398,6 +398,7 @@ def _lists_context(
     states: list[str],
     offset: int,
     rows_all: list[NameRow],
+    shuffle: str | None = None,
 ) -> dict[str, object]:
     end = offset + LISTS_PAGE_SIZE
     visible = rows_all[offset:end]
@@ -414,6 +415,8 @@ def _lists_context(
         params.append(("mode", mode))
         params.append(("view", view))
         params.extend(("state", st) for st in states)
+        if shuffle:
+            params.append(("shuffle", shuffle))
         params.append(("offset", str(next_offset)))
         next_rows_url = "/lists/rows?" + urlencode(params)
     return {
@@ -425,6 +428,7 @@ def _lists_context(
         "active_view": view,
         "active_states": states,
         "active_states_set": set(states),
+        "active_shuffle": shuffle or "",
         "rows": visible,
         "rows_total": len(rows_all),
         "has_more": has_more,
@@ -437,6 +441,13 @@ def _lists_context(
     }
 
 
+def _normalise_shuffle(value: str | None, *, mode: str) -> str | None:
+    """Keep `shuffle` only in random mode and clamp to a sane length."""
+    if mode != MODE_RANDOM or not value:
+        return None
+    return value[:32]
+
+
 @app.get("/lists", response_class=HTMLResponse)
 def lists_page(
     request: Request,
@@ -444,6 +455,7 @@ def lists_page(
     mode: str | None = None,
     view: str | None = None,
     state: Annotated[list[str] | None, Query()] = None,
+    shuffle: str | None = None,
     who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
@@ -454,11 +466,13 @@ def lists_page(
     active_mode = _resolve_mode(mode)
     active_view = normalise_view(view)
     states = normalise_states(state)
+    active_shuffle = _normalise_shuffle(shuffle, mode=active_mode)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
         mode=active_mode,
         states=states,
+        shuffle=active_shuffle,
     )
     ctx = _lists_context(
         user=user,
@@ -468,6 +482,7 @@ def lists_page(
         states=states,
         offset=0,
         rows_all=rows_all,
+        shuffle=active_shuffle,
     )
     return templates.TemplateResponse(request, "lists.html", ctx)
 
@@ -479,6 +494,7 @@ def lists_rows(
     mode: str | None = None,
     view: str | None = None,
     state: Annotated[list[str] | None, Query()] = None,
+    shuffle: str | None = None,
     offset: int = 0,
     who: WhoCookie = None,
 ) -> Response:
@@ -491,11 +507,13 @@ def lists_rows(
     active_mode = _resolve_mode(mode)
     active_view = normalise_view(view)
     states = normalise_states(state)
+    active_shuffle = _normalise_shuffle(shuffle, mode=active_mode)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
         mode=active_mode,
         states=states,
+        shuffle=active_shuffle,
     )
     ctx = _lists_context(
         user=user,
@@ -505,6 +523,7 @@ def lists_rows(
         states=states,
         offset=max(0, offset),
         rows_all=rows_all,
+        shuffle=active_shuffle,
     )
     return templates.TemplateResponse(request, "_lists_rows.html", ctx)
 
