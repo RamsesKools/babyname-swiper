@@ -1,0 +1,35 @@
+# Homeserver / Traefik deployment overlay.
+#
+# The base docker-compose.yml works standalone and publishes port 8765.
+# This overlay drops that host port and instead routes the app through a
+# Traefik reverse proxy on an external `traefik-proxy` network.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up --build -d
+#
+# Requires:
+#   - a running Traefik instance attached to the `traefik-proxy` network
+#   - a `redirect-https` middleware defined in Traefik's dynamic config
+#   - DNS for babynames.ramseskools.nl resolving to the host
+
+services:
+  baby-names-swiper:
+    # base file publishes 8765:8000 - drop it, Traefik reaches the
+    # container directly over the shared network
+    ports: !reset []
+    networks:
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.babynames.rule=Host(`babynames.ramseskools.nl`)"
+      - "traefik.http.routers.babynames.entrypoints=web"
+      - "traefik.http.routers.babynames.middlewares=redirect-https@file"
+      - "traefik.http.routers.babynames-secure.rule=Host(`babynames.ramseskools.nl`)"
+      - "traefik.http.routers.babynames-secure.entrypoints=websecure"
+      - "traefik.http.routers.babynames-secure.tls=true"
+      - "traefik.http.routers.babynames-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.services.babynames.loadbalancer.server.port=8000"
+
+networks:
+  traefik-proxy:
+    external: true

@@ -42,15 +42,18 @@ docker run --rm -v swipes-db:/data -v "$PWD":/backup alpine \
 
 ### Reverse proxy
 
-The compose file publishes port `8765` directly.
-If you front it with Traefik, add labels along the lines of:
+The base compose file publishes port `8765` directly and works standalone.
 
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.babynames.rule=Host(`names.yourdomain`)"
-  - "traefik.http.services.babynames.loadbalancer.server.port=8000"
+To front it with Traefik instead, use the `docker-compose.traefik.yml` overlay,
+which drops the host port and adds routing labels for an external
+`traefik-proxy` network:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up --build -d
 ```
+
+Adjust the `Host(...)` rule and middleware names in that file to match your
+own Traefik setup.
 
 ### COOKIE_SECRET
 
