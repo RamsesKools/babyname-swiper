@@ -22,7 +22,9 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 ### Header layout
 
 - The header uses the shared `.nav` pattern from the `webserver-homepage-config` project (CSS lives in `static/css/my-design.css`).
-- On narrow screens the nav links collapse behind a hamburger; clicking it toggles `.open` on `#nav` to reveal a stacked menu.
+- Top-level entries in order: "swipe names", "scroll names", "overview", "Add name(s)"; each pages-level link is flat (no nested overview dropdown) so the destination is one click away.
+- The nav collapses to the hamburger layout at ~60em so the links don't crowd the user chip before there's an actual overlap.
+- Below ~30em the full wordmark is swapped for the favicon mark, leaving room for the user chip + hamburger on phone-sized screens.
 - Behaviour (hamburger, dropdown clicks) lives in `static/js/nav.js`; markup stays in the Jinja template because the header has server-side conditionals.
 - Only one dropdown can be open at a time; clicking outside closes any click-driven dropdown.
 - Dropdowns open on hover on desktop and on click on mobile; the "Add name(s)" dropdown is forced to click-on-desktop too so it doesn't snap shut when the cursor drifts.
@@ -163,7 +165,7 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 ### Entry point
 
-- The "overview" header item is a hover dropdown; clicking the trigger still goes to the existing summary page, while the dropdown panel adds the new "Name lists" entry.
+- Reached via the top-level "scroll names" link in the nav; it's a flat link rather than nested under overview so the destination is one click away.
 
 ### List selection
 
@@ -186,6 +188,12 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - Each row has a Nope / Undo / Like triple; the currently active state is highlighted so the row reads as its current decision.
 - The middle Undo button clears any swipe (like or dislike) for that name; it's the gray neutral state.
 - A red x delete button appears only on manually-added names and removes the name from the list entirely for both users (same semantics as the overview page's "delete").
+
+### Row visuals
+
+- Liked rows get a soft green fill; disliked rows get a soft red fill. Symmetric so neither decision feels heavier than the other.
+- Disliked names are NOT struck through on this page (unlike the overview); the red fill already communicates the state and the strikethrough made the names harder to read while scanning.
+- In card view the name sits on its own line centered above the action buttons at a larger size; the buttons stay the same size as in table view so the action layout is consistent across views.
 
 ### Add-name affordance
 
