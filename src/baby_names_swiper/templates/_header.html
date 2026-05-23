@@ -3,6 +3,20 @@
         <img src="/static/logos/logo.svg" alt="Baby Names Swiper" class="nav-logo-img">
     </a>
 
+    {# Active user lives outside .nav-links so it stays visible on mobile when
+       the rest of the menu collapses behind the hamburger. On desktop it sits
+       inline with the other links via the .nav-user-mobile slot. #}
+    {% if user is defined and user %}
+    <div class="nav-user-mobile">
+        <div class="nav-dropdown">
+            <span class="nav-dropdown-label">Active user: {{ user }}</span>
+            <ul class="nav-dropdown-menu">
+                <li><a href="/logout">switch user</a></li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
     {# Hamburger: hidden on desktop, shown on narrow screens (see my-design.css).
        nav.js toggles the .open class on #nav when this is clicked. #}
     <button class="nav-hamburger" aria-label="Toggle menu">
@@ -10,17 +24,9 @@
     </button>
 
     <ul class="nav-links">
-        <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe</a></li>
-
-        {# Overview is now a dropdown: the trigger keeps the old /overview link
-           on click/tap (so the existing summary page remains the default
-           target), and the menu adds the new "Name lists" entry. #}
-        <li class="nav-dropdown {% if request.url.path in ['/overview', '/lists'] %}active{% endif %}">
-            <a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a>
-            <ul class="nav-dropdown-menu">
-                <li><a href="/lists" class="{% if request.url.path == '/lists' %}active{% endif %}">Name lists</a></li>
-            </ul>
-        </li>
+        <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe names</a></li>
+        <li><a href="/lists" class="{% if request.url.path == '/lists' %}active{% endif %}">scroll names</a></li>
+        <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
 
         {# "Add name(s)" dropdown -- replaces the old "upload" link and "+ name"
            dropdown. The menu has two items: a link to the upload page, and a
@@ -53,15 +59,5 @@
             </ul>
         </li>
 
-        {% if user is defined and user %}
-        {# Active user is a dropdown: the trigger shows who's logged in,
-           and the panel holds the "switch user" action. #}
-        <li class="nav-dropdown">
-            <span class="nav-dropdown-label">Active user: {{ user }}</span>
-            <ul class="nav-dropdown-menu">
-                <li><a href="/logout">switch user</a></li>
-            </ul>
-        </li>
-        {% endif %}
     </ul>
 </nav>

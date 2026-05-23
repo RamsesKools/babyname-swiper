@@ -31,6 +31,7 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 - The logged-in user is shown as a header dropdown labelled "Active user: {name}".
 - "switch user" lives inside that dropdown's panel rather than as a top-level link, so the header stays compact.
+- The active-user chip sits outside the collapsible nav links so it stays visible on mobile next to the hamburger; users should always see whose session they're in.
 
 ### Reusable menu-button helper
 
