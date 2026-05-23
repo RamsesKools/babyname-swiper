@@ -31,9 +31,9 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 ### Active user indicator
 
-- The logged-in user is shown as a header dropdown labelled "Active user: {name}".
-- "switch user" lives inside that dropdown's panel rather than as a top-level link, so the header stays compact.
-- The active-user chip sits outside the collapsible nav links so it stays visible on mobile next to the hamburger; users should always see whose session they're in.
+- The logged-in user is shown as a header chip labelled "User: {name}" that links directly to `/who` (the user picker), so switching takes one click and no dropdown is needed.
+- The chip sits outside the collapsible nav links so it stays visible on mobile next to the hamburger; users should always see whose session they're in.
+- `/logout` still exists for clearing the cookie, but is no longer surfaced in the header.
 
 ### Reusable menu-button helper
 

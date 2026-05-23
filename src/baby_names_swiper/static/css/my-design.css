@@ -134,7 +134,8 @@ body {
 }
 
 .nav-links > li > a,
-.nav-dropdown-label {
+.nav-dropdown-label,
+.nav-user-link {
     font-family: var(--font-mono);
     font-size: 13px;
     color: var(--c-text-secondary);
@@ -150,7 +151,8 @@ body {
     cursor: default;
 }
 
-.nav-links > li > a {
+.nav-links > li > a,
+.nav-user-link {
     cursor: pointer;
 }
 
@@ -164,7 +166,8 @@ body {
 
 /* Hover state for clickable items: blue text + border + grey background */
 .nav-links > li > a:hover,
-.nav-dropdown:hover > a {
+.nav-dropdown:hover > a,
+.nav-user-link:hover {
     border-color: var(--c-blue-muted);
     color: var(--c-blue);
     background: var(--c-neutral);
@@ -336,7 +339,8 @@ body {
     }
 
     .nav-links > li > a,
-    .nav-dropdown-label {
+    .nav-dropdown-label,
+    .nav-user-link {
         font-size: 15px;
     }
 

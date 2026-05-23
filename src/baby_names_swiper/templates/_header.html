@@ -5,16 +5,12 @@
     </a>
 
     {# Active user lives outside .nav-links so it stays visible on mobile when
-       the rest of the menu collapses behind the hamburger. On desktop it sits
-       inline with the other links via the .nav-user-mobile slot. #}
+       the rest of the menu collapses behind the hamburger. The chip is a
+       direct link to /who so clicking it goes straight to the picker -- no
+       dropdown indirection. #}
     {% if user is defined and user %}
     <div class="nav-user-mobile">
-        <div class="nav-dropdown">
-            <span class="nav-dropdown-label">Active user: {{ user }}</span>
-            <ul class="nav-dropdown-menu">
-                <li><a href="/logout">switch user</a></li>
-            </ul>
-        </div>
+        <a href="/who" class="nav-user-link">User: {{ user }}</a>
     </div>
     {% endif %}
 
