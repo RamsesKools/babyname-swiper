@@ -150,6 +150,18 @@ body {
     border-color: var(--c-border-strong);
 }
 
+/* Click-driven dropdown trigger: behaves like a button, not a hover label */
+.nav-dropdown-clickable > .nav-dropdown-label {
+    cursor: pointer;
+}
+
+.nav-dropdown-clickable:hover > .nav-dropdown-label,
+.nav-dropdown-clickable.dropdown-open > .nav-dropdown-label {
+    border-color: var(--c-blue-muted);
+    color: var(--c-blue);
+    background: var(--c-neutral);
+}
+
 /* --- Hamburger --- */
 
 .nav-hamburger {
@@ -218,12 +230,13 @@ body {
     height: 10px;
 }
 
-/* Open on hover (desktop) */
-.nav-dropdown:hover .nav-dropdown-menu {
+/* Open on hover (desktop) -- skipped for click-driven dropdowns so they
+   only respond to the JS-managed .dropdown-open class. */
+.nav-dropdown:not(.nav-dropdown-clickable):hover .nav-dropdown-menu {
     display: block;
 }
 
-/* Also open via JS class (mobile) */
+/* Also open via JS class (mobile, and all click-driven dropdowns) */
 .nav-dropdown.dropdown-open .nav-dropdown-menu {
     display: block;
 }

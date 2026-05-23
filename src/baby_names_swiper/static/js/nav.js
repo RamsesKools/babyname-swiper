@@ -43,7 +43,7 @@
         return hamburger && window.getComputedStyle(hamburger).display !== 'none';
     }
 
-    /* --- Dropdown click handling (mobile) --- */
+    /* --- Dropdown click handling --- */
     var dropdowns = nav.querySelectorAll('.nav-dropdown');
     for (var d = 0; d < dropdowns.length; d++) {
         (function (dropdown) {
@@ -53,10 +53,15 @@
                        || dropdown.querySelector(':scope > .nav-dropdown-label');
             if (!trigger) return;
             var isLink = trigger.tagName === 'A';
+            /* Dropdowns marked .nav-dropdown-clickable open on click on
+               desktop too (not only on hover). The "Add name(s)" panel uses
+               this so it stays put when the mouse drifts away. */
+            var clickOnDesktop = dropdown.classList.contains('nav-dropdown-clickable');
 
             trigger.addEventListener('click', function (e) {
-                /* Desktop: a link just navigates, hover handles the panel. */
-                if (!isMobileLayout()) return;
+                /* Desktop hover dropdowns: a link just navigates, hover handles
+                   the panel -- nothing to do here. */
+                if (!isMobileLayout() && !clickOnDesktop) return;
 
                 if (isLink) {
                     /* Mobile link: first tap expands the panel, second tap
@@ -69,13 +74,55 @@
                     return;
                 }
 
-                /* Mobile label (not a link): just toggle the panel. */
+                /* Label trigger (not a link): toggle the panel. */
                 e.preventDefault();
+                e.stopPropagation();
+                var willOpen = !dropdown.classList.contains('dropdown-open');
                 closeOtherDropdowns(dropdown);
                 dropdown.classList.toggle('dropdown-open');
+                /* Reset the inline add-name form whenever the panel closes. */
+                if (!willOpen) {
+                    var wrap = dropdown.querySelector('.add-name-form-wrap');
+                    if (wrap) wrap.hidden = true;
+                }
             });
         })(dropdowns[d]);
     }
+
+    /* --- "Add single name" inline-form toggle ---
+       Inside the "Add name(s)" dropdown, the "Add single name" item reveals
+       a form inline. Clicking it a second time closes the entire dropdown
+       (matches what the user expects: same item, opposite action). */
+    var addToggle = nav.querySelector('.add-name-toggle');
+    if (addToggle) {
+        var wrap = nav.querySelector('.add-name-form-wrap');
+        var parentDropdown = addToggle.closest('.nav-dropdown');
+        addToggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!wrap) return;
+            if (wrap.hidden) {
+                wrap.hidden = false;
+                var input = wrap.querySelector('input[name="name"]');
+                if (input) input.focus();
+            } else {
+                wrap.hidden = true;
+                if (parentDropdown) parentDropdown.classList.remove('dropdown-open');
+            }
+        });
+    }
+
+    /* --- Close click-driven dropdowns when clicking outside --- */
+    document.addEventListener('click', function (e) {
+        var openClickable = nav.querySelectorAll('.nav-dropdown-clickable.dropdown-open');
+        for (var i = 0; i < openClickable.length; i++) {
+            if (!openClickable[i].contains(e.target)) {
+                openClickable[i].classList.remove('dropdown-open');
+                var w = openClickable[i].querySelector('.add-name-form-wrap');
+                if (w) w.hidden = true;
+            }
+        }
+    });
 
     /* ------------------------------------------------------------------
        Reusable "menu button" helper -- a button in the header that, when

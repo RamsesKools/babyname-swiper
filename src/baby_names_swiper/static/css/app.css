@@ -17,6 +17,15 @@ body {
 .add-name-form {
     display: flex;
     gap: 0.4rem;
+    padding: 6px 4px 4px;
+}
+
+/* Divider between the "Add single name" toggle and the inline form that
+   it reveals, so the form feels like a sub-section of the same menu. */
+.add-name-form-wrap {
+    border-top: 0.5px solid var(--c-border);
+    margin-top: 4px;
+    padding-top: 2px;
 }
 
 .add-name-form input[type="text"] {

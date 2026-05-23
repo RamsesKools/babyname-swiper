@@ -12,16 +12,21 @@
     <ul class="nav-links">
         <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe</a></li>
         <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
-        <li><a href="/upload" class="{% if request.url.path == '/upload' %}active{% endif %}">upload</a></li>
 
-        {% if active_list is defined and active_list %}
-        {# "+ name" is a dropdown: a trigger that reveals a panel below it.
-           On desktop the panel opens on hover; on mobile nav.js toggles
-           .dropdown-open on click. #}
-        <li class="nav-dropdown">
-            <span class="nav-dropdown-label">+ name</span>
+        {# "Add name(s)" dropdown -- replaces the old "upload" link and "+ name"
+           dropdown. The menu has two items: a link to the upload page, and a
+           toggle that reveals an inline add-name form inside the same panel.
+           Clicking the toggle a second time closes the whole dropdown (handled
+           in nav.js). #}
+        <li class="nav-dropdown nav-dropdown-clickable {% if request.url.path == '/upload' %}active{% endif %}">
+            <span class="nav-dropdown-label">Add name(s)</span>
             <ul class="nav-dropdown-menu">
+                <li><a href="/upload" class="{% if request.url.path == '/upload' %}active{% endif %}">Upload names file</a></li>
+                {% if active_list is defined and active_list %}
                 <li>
+                    <a href="#" class="add-name-toggle">Add single name</a>
+                </li>
+                <li class="add-name-form-wrap" hidden>
                     <form class="add-name-form" method="post" action="/add-name">
                         <input type="hidden" name="list" value="{{ active_list }}">
                         {% if active_mode is defined and active_mode %}
@@ -35,9 +40,9 @@
                         <button type="submit">add</button>
                     </form>
                 </li>
+                {% endif %}
             </ul>
         </li>
-        {% endif %}
 
         {% if user is defined and user %}
         {# Active user is a dropdown: the trigger shows who's logged in,
