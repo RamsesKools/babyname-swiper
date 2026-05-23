@@ -101,6 +101,22 @@ body {
     display: block;
 }
 
+/* The full logotype is the default; the favicon mark only appears on very
+   narrow screens where the long wordmark would otherwise crowd out the
+   user chip + hamburger. */
+.nav-logo-mark {
+    display: none;
+}
+
+@media (max-width: 30em) {
+    .nav-logo-full {
+        display: none;
+    }
+    .nav-logo-mark {
+        display: block;
+    }
+}
+
 .nav-links {
     display: flex;
     gap: 0.5rem;
