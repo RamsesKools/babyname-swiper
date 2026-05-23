@@ -19,6 +19,7 @@ from baby_names_swiper.names import (
     add_manual_name,
     list_available_lists,
     load_manual_names,
+    load_names,
     remove_manual_name,
     save_upload,
 )
@@ -382,14 +383,28 @@ def add_name(
     list_slug = _resolve_list(list)
     active_mode = _resolve_mode(mode)
     reswipe_flag = bool(reswipe)
-    try:
-        added = add_manual_name(list_slug, name)
-    except ValueError:
-        # already present or invalid — just bounce back to the swipe page
-        added = None
-    if added is not None:
-        record(user, list_slug, added, LIKE)
+    # If the name already exists in the list, don't add it again -- but still
+    # record a LIKE for the current user, so the action is never a no-op from
+    # their perspective. Match case-insensitively and like the stored casing
+    # so it ties to the canonical entry in the deck.
+    cleaned = name.strip()
+    target_key = cleaned.casefold()
+    existing = next(
+        (n for n in load_names(list_slug) if n.casefold() == target_key),
+        None,
+    )
+    if existing is not None:
+        record(user, list_slug, existing, LIKE)
         invalidate_list_decks(list_slug)
+    else:
+        try:
+            added = add_manual_name(list_slug, name)
+        except ValueError:
+            # invalid (empty / too long) -- bounce back without recording
+            added = None
+        if added is not None:
+            record(user, list_slug, added, LIKE)
+            invalidate_list_decks(list_slug)
     # Send the user back to whichever page they submitted from, so adding
     # a name from /overview doesn't kick them to /swipe. We only honour the
     # Referer when it's same-origin (path-only), falling back to /swipe.
