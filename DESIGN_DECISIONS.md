@@ -35,6 +35,10 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - The chip sits outside the collapsible nav links so it stays visible on mobile next to the hamburger; users should always see whose session they're in.
 - `/logout` still exists for clearing the cookie, but is no longer surfaced in the header.
 
+### Carrying the active list across pages
+
+- The header's "scroll names" link carries the swipe page's active list as `?list=<slug>` so switching from swiping to scrolling keeps the same list selected instead of opening with an empty selection.
+
 ### Reusable menu-button helper
 
 - `nav.js` exposes `window.addMenuButton(label, items)` for adding a new link-list dropdown to the header in one call.

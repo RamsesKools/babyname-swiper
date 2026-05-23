@@ -22,7 +22,7 @@
 
     <ul class="nav-links">
         <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe names</a></li>
-        <li><a href="/lists" class="{% if request.url.path == '/lists' %}active{% endif %}">scroll names</a></li>
+        <li><a href="/lists{% if active_list is defined and active_list %}?list={{ active_list }}{% endif %}" class="{% if request.url.path == '/lists' %}active{% endif %}">scroll names</a></li>
         <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
 
         {# "Add name(s)" dropdown -- replaces the old "upload" link and "+ name"
