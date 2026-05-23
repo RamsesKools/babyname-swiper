@@ -76,6 +76,22 @@ def test_build_rows_filter_by_state_keeps_only_requested():
     assert [r.name for r in likes_only] == ["Aaron"]
 
 
+def test_build_rows_random_mode_pins_manual_names_to_end():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    add_manual_name("boys", "Zenith")
+    rows = build_rows(
+        user="Ramses",
+        list_slugs=["boys"],
+        mode="random",
+        states=["like", "dislike", "unswiped"],
+    )
+    names = [r.name for r in rows]
+    # Zenith (manual) lands at the very end of the random order
+    assert names[-1] == "Zenith"
+    # base names occupy the first three slots in some random order
+    assert set(names[:-1]) == {"Aaron", "Bram", "Cas"}
+
+
 def test_build_rows_marks_manual_names():
     _seed_list("boys", ["Aaron"])
     add_manual_name("boys", "Atlas")

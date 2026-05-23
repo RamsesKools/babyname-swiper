@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from baby_names_swiper.names import load_manual_names, load_names
-from baby_names_swiper.swipes import ALL_STATES, order_names, states_for
+from baby_names_swiper.swipes import ALL_STATES, MODE_RANDOM, order_names, states_for
 
 # query-param defaults / valid sets
 VIEW_CARD = "card"
@@ -96,13 +96,31 @@ def build_rows(
     # given selection. Multi-list selection is unioned, so this is a
     # documented choice rather than a bug.
     seed_slug = list_slugs[0]
-    ordered = order_names(
-        pool,
-        mode,
-        user=user,
-        list_slug=seed_slug,
-        reswipe_disliked=reswipe_disliked,
-    )
+
+    if mode == MODE_RANDOM:
+        # Manual-added names go to the end of the random order (alphabetical
+        # among themselves) so that adding a name doesn't reshuffle the user's
+        # current view -- they'll just see the new entry appear at the bottom
+        # of the list. The base-CSV pool keeps the weighted-random shuffle.
+        manual_keys = {k for s in manual_by_slug.values() for k in s}
+        base_pool = [n for n in pool if n.casefold() not in manual_keys]
+        manual_pool = [n for n in pool if n.casefold() in manual_keys]
+        ordered = order_names(
+            base_pool,
+            mode,
+            user=user,
+            list_slug=seed_slug,
+            reswipe_disliked=reswipe_disliked,
+        )
+        ordered.extend(sorted(manual_pool, key=str.casefold))
+    else:
+        ordered = order_names(
+            pool,
+            mode,
+            user=user,
+            list_slug=seed_slug,
+            reswipe_disliked=reswipe_disliked,
+        )
 
     state_map = states_for(user, seed_slug, ordered)
     # state_map only checks the seed slug's swipes; for a true union view

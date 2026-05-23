@@ -9,6 +9,7 @@ from baby_names_swiper.swipes import (
     MODE_ALPHA,
     MODE_PARTNER_LIKES,
     MODE_RANDOM,
+    absorb_added_name,
     get_deck,
     overview,
     record,
@@ -274,6 +275,38 @@ def test_random_order_differs_between_users():
     chiara = get_deck("Chiara", "boys", mode=MODE_RANDOM).names
     # extremely unlikely to coincide for 8 names with distinct seeds
     assert ramses != chiara
+
+
+# --------------------------------------------------------------------------- #
+#                       absorb_added_name (add-name flow)                     #
+# --------------------------------------------------------------------------- #
+
+
+def test_absorb_added_name_appends_to_random_deck():
+    _seed_list("boys", ["A", "B", "C"])
+    deck = get_deck("Ramses", "boys", mode=MODE_RANDOM)
+    original_order = list(deck.names)
+
+    absorb_added_name("boys", "Zenith")
+
+    # same deck object, original order preserved, new name appended at end
+    same = get_deck("Ramses", "boys", mode=MODE_RANDOM)
+    assert same is deck
+    assert same.names == [*original_order, "Zenith"]
+
+
+def test_absorb_added_name_rebuilds_alpha_deck():
+    _seed_list("boys", ["B", "D"])
+    deck = get_deck("Ramses", "boys", mode=MODE_ALPHA)
+    assert deck.names == ["B", "D"]
+
+    # the new name needs to land between B and D, which only happens on rebuild
+    (config.NAMES_DIR / "boys.csv").write_text("B\nC\nD\n", encoding="utf-8")
+    absorb_added_name("boys", "C")
+
+    rebuilt = get_deck("Ramses", "boys", mode=MODE_ALPHA)
+    assert rebuilt is not deck
+    assert rebuilt.names == ["B", "C", "D"]
 
 
 # --------------------------------------------------------------------------- #

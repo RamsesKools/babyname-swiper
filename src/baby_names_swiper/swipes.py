@@ -351,6 +351,29 @@ def invalidate_list_decks(list_slug: str) -> None:
         del _decks[key]
 
 
+def absorb_added_name(list_slug: str, name: str) -> None:
+    """Make cached decks aware of a newly added name without reshuffling.
+
+    For deterministic-order decks (alpha, partner_likes) the order depends on
+    the name itself, so they are dropped and the next get_deck() call rebuilds
+    them with the new name in its natural place.
+
+    For random decks the order is a one-shot shuffle; rebuilding would yield a
+    *different* order and lose the user's scroll position / next-card
+    expectation. Instead, the new name is appended to the end of every cached
+    random deck for the list (across both users).
+    """
+    for key, deck in list(_decks.items()):
+        if key[1] != list_slug:
+            continue
+        mode = key[2]
+        if mode == MODE_RANDOM:
+            if name not in deck.names:
+                deck.names.append(name)
+        else:
+            del _decks[key]
+
+
 def remove_swipe(user: str, list_slug: str, name: str) -> bool:
     """Delete a single swipe for this user. Returns True if a row was removed."""
     with cursor() as cur:

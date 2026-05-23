@@ -47,6 +47,11 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - After submitting a name, the dropdown reopens automatically with the input focused, so several names can be queued in a row.
 - After submitting, the user lands back on the page they submitted from (e.g. overview stays on overview), not always on the swipe page.
 
+### Where a newly added name lands
+
+- For alphabetical and partner-likes ordering, the list/deck is rebuilt so the name appears in its natural slot.
+- For random ordering the existing shuffle is kept and the name is appended to the end (both on the swipe deck and on the /lists random view), so adding a name never reshuffles the names the user is currently looking at.
+
 ### Handling duplicates and prior swipes
 
 - Typing a name that already exists in the list does not add it again, but does record a like for the current user.

@@ -30,6 +30,7 @@ from baby_names_swiper.swipes import (
     LIKE,
     MODE_RANDOM,
     VALID_MODES,
+    absorb_added_name,
     get_deck,
     invalidate_decks,
     invalidate_list_decks,
@@ -625,7 +626,10 @@ def add_name(
     )
     if existing is not None:
         record(user, list_slug, existing, LIKE)
-        invalidate_list_decks(list_slug)
+        # Name already in the pool: only this user's swipe changed, so the
+        # other user's decks don't need to know -- a normal per-user
+        # invalidation is enough.
+        invalidate_decks(user, list_slug)
     else:
         try:
             added = add_manual_name(list_slug, name)
@@ -634,7 +638,12 @@ def add_name(
             added = None
         if added is not None:
             record(user, list_slug, added, LIKE)
-            invalidate_list_decks(list_slug)
+            # The list's pool changed: alpha/partner_likes decks rebuild so
+            # the new name lands in its natural slot; random decks get the
+            # name appended to the end, preserving the existing order so the
+            # user doesn't lose their scroll position on /lists or their
+            # place in the swipe deck.
+            absorb_added_name(list_slug, added)
     # Send the user back to whichever page they submitted from, so adding
     # a name from /overview doesn't kick them to /swipe. We only honour the
     # Referer when it's same-origin (path-only), falling back to /swipe.
