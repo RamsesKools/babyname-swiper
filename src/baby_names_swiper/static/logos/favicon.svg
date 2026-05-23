@@ -13,9 +13,9 @@
   <g>
     <path d="M 4 0 H 69.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#ffffff"/>
     <path d="M 69 0 H 132 A 4 4 0 0 1 136 4 V 96 A 4 4 0 0 1 132 100 H 69 V 0 Z" fill="#ffffff"/>
-    <path d="M 4 0 H 69.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#a4e0ea" mask="url(#mask-left)"/>
-    <path d="M 69 0 H 132 A 4 4 0 0 1 136 4 V 96 A 4 4 0 0 1 132 100 H 69 V 0 Z M 72 3 H 132 A 1 1 0 0 1 133 4 V 96 A 1 1 0 0 1 132 97 H 72 V 3 Z" fill-rule="evenodd" fill="#a4e0ea"/>
-    <text fill="#a4e0ea" text-anchor="start" dominant-baseline="central"
+    <path d="M 4 0 H 69.5 V 100 H 4 A 4 4 0 0 1 0 96 V 4 A 4 4 0 0 1 4 0 Z" fill="#3E77DC" mask="url(#mask-left)"/>
+    <path d="M 69 0 H 132 A 4 4 0 0 1 136 4 V 96 A 4 4 0 0 1 132 100 H 69 V 0 Z M 72 3 H 132 A 1 1 0 0 1 133 4 V 96 A 1 1 0 0 1 132 97 H 72 V 3 Z" fill-rule="evenodd" fill="#3E77DC"/>
+    <text fill="#3E77DC" text-anchor="start" dominant-baseline="central"
           x="74" y="50"
           font-size="100" font-family="Geist, sans-serif"
           font-weight="700">n</text>
