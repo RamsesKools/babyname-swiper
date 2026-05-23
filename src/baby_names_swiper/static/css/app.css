@@ -871,9 +871,9 @@ body {
     border-color: var(--c-green-border);
 }
 
-.lists-row.state-dislike .lists-row-name {
-    color: var(--c-text-muted);
-    text-decoration: line-through;
+.lists-row.state-dislike {
+    background: var(--c-danger-light);
+    border-color: var(--c-danger);
 }
 
 .lists-row-name {
