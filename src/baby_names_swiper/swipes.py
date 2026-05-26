@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import hashlib
 import math
 import random
+import secrets
 
 from baby_names_swiper.config import USERS
 from baby_names_swiper.db import cursor
@@ -144,7 +145,16 @@ def undo_last(user: str, list_slug: str) -> str | None:
 #                                  the deck                                   #
 # --------------------------------------------------------------------------- #
 
-DeckKey = tuple[str, str, str, bool]  # (user, list_slug, order, reswipe)
+DeckKey = tuple[str, str, str, bool, str]  # (user, list_slug, order, reswipe, shuffle)
+
+# Alphabet for shuffle tokens: digits + lowercase, unambiguous in URLs.
+_SHUFFLE_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
+_SHUFFLE_LEN = 8
+
+
+def new_shuffle_token() -> str:
+    """Generate a fresh short alphanumeric token for the random shuffle seed."""
+    return "".join(secrets.choice(_SHUFFLE_ALPHABET) for _ in range(_SHUFFLE_LEN))
 
 
 @dataclass
@@ -190,10 +200,8 @@ class Deck:
 _decks: dict[DeckKey, Deck] = {}
 
 
-def _seed_for(key: DeckKey, *, shuffle: str | None = None) -> int:
-    parts = [key[0], key[1], key[2], "1" if key[3] else "0"]
-    if shuffle:
-        parts.append(shuffle)
+def _seed_for(key: DeckKey) -> int:
+    parts = [key[0], key[1], key[2], "1" if key[3] else "0", key[4]]
     raw = "\x1f".join(parts)
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return int(digest[:16], 16)
@@ -266,7 +274,7 @@ def order_names(
     if order == ORDER_ALPHA:
         return sorted(pool, key=str.casefold)
 
-    seed = _seed_for((user, list_slug, order, reswipe_disliked), shuffle=shuffle)
+    seed = _seed_for((user, list_slug, order, reswipe_disliked, shuffle or ""))
     return _seeded_weighted_order(pool, seed, partner_likes, partner_dislikes)
 
 
@@ -276,6 +284,7 @@ def _build_order(
     order: str,
     *,
     reswipe_disliked: bool,
+    shuffle: str | None = None,
 ) -> list[str]:
     """Compute the fixed name order for a fresh deck."""
     all_names = load_names(list_slug)
@@ -297,6 +306,7 @@ def _build_order(
         user=user,
         list_slug=list_slug,
         reswipe_disliked=reswipe_disliked,
+        shuffle=shuffle,
     )
 
 
@@ -306,15 +316,21 @@ def get_deck(
     *,
     order: str = ORDER_RANDOM,
     reswipe_disliked: bool = False,
+    shuffle: str | None = None,
 ) -> Deck:
     """Return the cached deck for this combination, building it if needed.
 
     The deck's order is fixed once built. The cursor is reconciled against the
-    current swipe history so it always points at a genuinely unseen name.
+    current swipe history so it always points at a genuinely unseen name. The
+    `shuffle` token is folded into the deck key for ORDER_RANDOM so a new
+    token forces a fresh order (without disturbing decks built for other
+    tokens). For non-random orders the token has no effect on the order but is
+    still part of the key so callers can pass it through uniformly.
     """
     if order not in VALID_ORDERS:
         order = ORDER_RANDOM
-    key: DeckKey = (user, list_slug, order, reswipe_disliked)
+    shuffle_key = shuffle or "" if order == ORDER_RANDOM else ""
+    key: DeckKey = (user, list_slug, order, reswipe_disliked, shuffle_key)
 
     deck = _decks.get(key)
     if deck is None:
@@ -323,6 +339,7 @@ def get_deck(
             list_slug,
             order,
             reswipe_disliked=reswipe_disliked,
+            shuffle=shuffle_key or None,
         )
         deck = Deck(names=names)
         _decks[key] = deck

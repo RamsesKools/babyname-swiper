@@ -11,12 +11,13 @@
         form.submit();
     });
 
+    /* Reshuffle: clear the shuffle token from the URL and reload so the
+       server mints a fresh one. Single source of truth for the token format. */
     var reshuffle = document.getElementById('lists-reshuffle');
     var shuffleInput = document.getElementById('lists-shuffle');
     if (reshuffle && shuffleInput) {
         reshuffle.addEventListener('click', function () {
-            shuffleInput.value = Date.now().toString(36) +
-                Math.random().toString(36).slice(2, 8);
+            shuffleInput.value = '';
             form.submit();
         });
     }

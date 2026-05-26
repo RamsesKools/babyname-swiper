@@ -39,6 +39,7 @@ function deckConfig() {
         list: d.dataset.list,
         order: d.dataset.order || "random",
         reswipe: d.dataset.reswipe || "0",
+        shuffle: d.dataset.shuffle || "",
     };
 }
 
@@ -119,13 +120,15 @@ function promoteNextToActive(upcoming) {
 }
 
 function swipeBody(direction, swipedName, cfg) {
-    return new URLSearchParams({
+    const params = new URLSearchParams({
         name: swipedName,
         direction: direction === "like" ? "1" : "0",
         list: cfg.list,
         order: cfg.order,
         reswipe: cfg.reswipe,
     });
+    if (cfg.shuffle) params.set("shuffle", cfg.shuffle);
+    return params;
 }
 
 function commitSwipe(direction, swipedName, cfg) {
@@ -180,9 +183,13 @@ function commitLastSwipe(direction, swipedName, cfg) {
             const frag = new DOMParser().parseFromString(postHtml, "text/html");
             const el = frag.querySelector("[data-match-name]");
             matchName = el ? el.getAttribute("data-match-name") : null;
-            return fetch(`/swipe?list=${encodeURIComponent(cfg.list)}`
+            let url = `/swipe?list=${encodeURIComponent(cfg.list)}`
                 + `&order=${encodeURIComponent(cfg.order)}`
-                + `&reswipe=${encodeURIComponent(cfg.reswipe)}`);
+                + `&reswipe=${encodeURIComponent(cfg.reswipe)}`;
+            if (cfg.shuffle) {
+                url += `&shuffle=${encodeURIComponent(cfg.shuffle)}`;
+            }
+            return fetch(url);
         })
         .then((r) => r.text())
         .then((html) => Promise.all([html, animationDone]))
@@ -212,6 +219,7 @@ function undo() {
         order: cfg.order,
         reswipe: cfg.reswipe,
     });
+    if (cfg.shuffle) body.set("shuffle", cfg.shuffle);
     fetch("/swipe/undo", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -265,6 +273,8 @@ document.addEventListener("change", (event) => {
     } else {
         url.searchParams.set(key, target.value);
     }
+    // The shuffle token already in the URL is preserved across control changes
+    // by re-using the existing URL above. Nothing extra to do for list/reswipe.
     window.location.href = url.toString();
 });
 
@@ -282,6 +292,18 @@ document.body.addEventListener("click", (event) => {
         undo();
     }
 });
+
+// ---- reshuffle button: drop the shuffle token from the URL and reload so
+// the server mints a fresh one. ----
+
+const reshuffleBtn = document.getElementById("swipe-reshuffle");
+if (reshuffleBtn) {
+    reshuffleBtn.addEventListener("click", () => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("shuffle");
+        window.location.href = url.toString();
+    });
+}
 
 // ---- drag / pointer gestures ----
 

@@ -35,6 +35,7 @@ from baby_names_swiper.swipes import (
     invalidate_decks,
     invalidate_list_decks,
     is_match,
+    new_shuffle_token,
     overview,
     record,
     remove_swipe,
@@ -91,6 +92,28 @@ def _resolve_order(order: str | None) -> str:
     return ORDER_RANDOM
 
 
+def _redirect_with_shuffle(
+    request: Request,
+    *,
+    extra_params: list[tuple[str, str]] | None = None,
+) -> RedirectResponse:
+    """Redirect back to the current path with a freshly minted `shuffle` token.
+
+    Used when a GET arrives at a page that needs a stable per-session shuffle
+    seed (random order, no token in URL). The token is baked into the URL so
+    refresh keeps the order, and so any further navigation can carry it.
+    """
+    params: list[tuple[str, str]] = []
+    for key, value in request.query_params.multi_items():
+        if key == "shuffle":
+            continue
+        params.append((key, value))
+    if extra_params:
+        params.extend(extra_params)
+    params.append(("shuffle", new_shuffle_token()))
+    return RedirectResponse(url=f"{request.url.path}?{urlencode(params)}", status_code=303)
+
+
 @app.get("/healthz")
 def healthz() -> JSONResponse:
     return JSONResponse({"ok": True})
@@ -142,6 +165,7 @@ def _deck_context(
     reswipe_flag: bool,
     current: str | None,
     lookahead: str | None,
+    shuffle: str | None = None,
 ) -> dict[str, object]:
     return {
         "user": user,
@@ -150,6 +174,7 @@ def _deck_context(
         "reswipe": reswipe_flag,
         "current_name": current,
         "next_name": lookahead,
+        "active_shuffle": shuffle or "",
     }
 
 
@@ -159,6 +184,7 @@ def swipe_page(
     list: str | None = None,  # noqa: A002
     order: str | None = None,
     reswipe: int = 0,
+    shuffle: str | None = None,
     who: WhoCookie = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
@@ -168,7 +194,19 @@ def swipe_page(
     list_slug = _resolve_list(list)
     active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
-    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
+    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
+    # Random order without a token = fresh arrival. Mint a session token and
+    # bake it into the URL so refresh / back-forward / internal links keep
+    # the same order.
+    if active_order == ORDER_RANDOM and not active_shuffle:
+        return _redirect_with_shuffle(request)
+    deck = get_deck(
+        user,
+        list_slug,
+        order=active_order,
+        reswipe_disliked=reswipe_flag,
+        shuffle=active_shuffle,
+    )
     ctx: dict[str, object] = {
         "lists": list_available_lists(),
         **_deck_context(
@@ -178,6 +216,7 @@ def swipe_page(
             reswipe_flag=reswipe_flag,
             current=deck.current(),
             lookahead=deck.lookahead(),
+            shuffle=active_shuffle,
         ),
     }
     return templates.TemplateResponse(request, "swipe.html", ctx)
@@ -191,6 +230,7 @@ def post_swipe(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     order: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
+    shuffle: Annotated[str | None, Form()] = None,
     who: WhoCookie = None,
 ) -> HTMLResponse:
     """Record a swipe and return the next lookahead card.
@@ -209,13 +249,20 @@ def post_swipe(
     list_slug = _resolve_list(list)
     active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
+    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
 
     swiped_name = name.strip()
     record(user, list_slug, swiped_name, direction)
     # a new match exists only when this swipe was a like and the partner had
     # already liked the same name
     new_match = direction == LIKE and is_match(user, list_slug, swiped_name)
-    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
+    deck = get_deck(
+        user,
+        list_slug,
+        order=active_order,
+        reswipe_disliked=reswipe_flag,
+        shuffle=active_shuffle,
+    )
 
     lookahead = deck.lookahead()
     template = "_card_next.html" if lookahead else "_card_next_empty.html"
@@ -226,6 +273,7 @@ def post_swipe(
         reswipe_flag=reswipe_flag,
         current=deck.current(),
         lookahead=lookahead,
+        shuffle=active_shuffle,
     )
     ctx["match_name"] = swiped_name if new_match else None
     return templates.TemplateResponse(request, template, ctx)
@@ -237,6 +285,7 @@ def post_undo(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     order: Annotated[str | None, Form()] = None,
     reswipe: Annotated[int, Form()] = 0,
+    shuffle: Annotated[str | None, Form()] = None,
     who: WhoCookie = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
@@ -246,9 +295,16 @@ def post_undo(
     list_slug = _resolve_list(list)
     active_order = _resolve_order(order)
     reswipe_flag = bool(reswipe)
+    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
 
     restored = undo_last(user, list_slug)
-    deck = get_deck(user, list_slug, order=active_order, reswipe_disliked=reswipe_flag)
+    deck = get_deck(
+        user,
+        list_slug,
+        order=active_order,
+        reswipe_disliked=reswipe_flag,
+        shuffle=active_shuffle,
+    )
     if restored:
         deck.rewind()
     return templates.TemplateResponse(
@@ -261,6 +317,7 @@ def post_undo(
             reswipe_flag=reswipe_flag,
             current=deck.current(),
             lookahead=deck.lookahead(),
+            shuffle=active_shuffle,
         ),
     )
 
@@ -467,6 +524,10 @@ def lists_page(
     active_view = normalise_view(view)
     states = normalise_states(state)
     active_shuffle = _normalise_shuffle(shuffle, order=active_order)
+    # Fresh arrival on random order: mint a session shuffle token and bake it
+    # into the URL so the order stays put across navigation / refresh.
+    if active_order == ORDER_RANDOM and not active_shuffle:
+        return _redirect_with_shuffle(request)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,

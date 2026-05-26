@@ -19,6 +19,9 @@
             <option value="alpha"         {% if active_order == 'alpha' %}selected{% endif %}>alphabetical</option>
             <option value="partner_likes" {% if active_order == 'partner_likes' %}selected{% endif %}>partner likes only</option>
         </select>
+        {% if active_order == 'random' %}
+        <button type="button" id="swipe-reshuffle" class="lists-reshuffle-btn">reshuffle</button>
+        {% endif %}
     </div>
     <div class="control control-checkbox">
         <input id="reswipe-toggle"
