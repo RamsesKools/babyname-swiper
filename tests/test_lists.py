@@ -20,6 +20,9 @@ def _client_for(user: str) -> TestClient:
     return client
 
 
+ALL_STATES = ["like", "dislike", "unswiped"]
+
+
 # --------------------------------------------------------------------------- #
 #                              build_rows helper                              #
 # --------------------------------------------------------------------------- #
@@ -31,7 +34,18 @@ def test_build_rows_empty_when_no_lists_selected():
         user="Ramses",
         list_slugs=[],
         order="alpha",
-        states=["like", "dislike", "unswiped"],
+        states=ALL_STATES,
+    )
+    assert rows == []
+
+
+def test_build_rows_empty_when_no_states_selected():
+    _seed_list("boys", ["Aaron"])
+    rows = build_rows(
+        user="Ramses",
+        list_slugs=["boys"],
+        order="alpha",
+        states=[],
     )
     assert rows == []
 
@@ -44,7 +58,7 @@ def test_build_rows_decorates_states():
         user="Ramses",
         list_slugs=["boys"],
         order="alpha",
-        states=["like", "dislike", "unswiped"],
+        states=ALL_STATES,
     )
     states = {r.name: r.state for r in rows}
     assert states == {"Aaron": "like", "Bram": "dislike", "Cas": "unswiped"}
@@ -57,7 +71,7 @@ def test_build_rows_dedupes_union_across_lists():
         user="Ramses",
         list_slugs=["boys", "unisex"],
         order="alpha",
-        states=["like", "dislike", "unswiped"],
+        states=ALL_STATES,
     )
     names = [r.name for r in rows]
     assert names == ["Aaron", "Robin", "Sam"]
@@ -83,12 +97,11 @@ def test_build_rows_random_order_pins_manual_names_to_end():
         user="Ramses",
         list_slugs=["boys"],
         order="random",
-        states=["like", "dislike", "unswiped"],
+        states=ALL_STATES,
+        shuffle="abcd1234",
     )
     names = [r.name for r in rows]
-    # Zenith (manual) lands at the very end of the random order
     assert names[-1] == "Zenith"
-    # base names occupy the first three slots in some random order
     assert set(names[:-1]) == {"Aaron", "Bram", "Cas"}
 
 
@@ -99,7 +112,7 @@ def test_build_rows_marks_manual_names():
         user="Ramses",
         list_slugs=["boys"],
         order="alpha",
-        states=["like", "dislike", "unswiped"],
+        states=ALL_STATES,
     )
     by_name = {r.name: r for r in rows}
     assert by_name["Aaron"].is_manual is False
@@ -121,9 +134,12 @@ def test_lists_page_renders_empty_when_nothing_selected():
 
 def test_lists_page_lists_names_for_selected_list():
     _seed_list("boys", ["Aaron", "Bram"])
-    r = _client_for("Ramses").get("/lists", params={"list": "boys", "order": "alpha"})
+    # Need an explicit state filter (default is unswiped, which fits here).
+    r = _client_for("Ramses").get(
+        "/lists",
+        params=[("list", "boys"), ("order", "alpha"), ("state", "unswiped")],
+    )
     assert r.status_code == 200
-    # both names appear in the rendered body
     assert "Aaron" in r.text
     assert "Bram" in r.text
 
@@ -150,10 +166,35 @@ def test_lists_swipe_records_like():
     )
     assert r.status_code == 200
     assert "state-like" in r.text
-    # confirms the swipe was actually persisted
     from baby_names_swiper.swipes import overview  # noqa: PLC0415
 
     assert overview("Ramses", "boys").my_likes == ["Aaron"]
+
+
+def test_lists_swipe_emits_match_trigger_when_match_created():
+    _seed_list("boys", ["Aaron"])
+    record("Chiara", "boys", "Aaron", LIKE)  # partner already liked
+    client = _client_for("Ramses")
+    r = client.post(
+        "/lists/swipe",
+        data={"name": "Aaron", "list": "boys", "direction": str(LIKE)},
+    )
+    assert r.status_code == 200
+    trigger = r.headers.get("HX-Trigger")
+    assert trigger is not None
+    assert "matchCreated" in trigger
+    assert "Aaron" in trigger
+
+
+def test_lists_swipe_no_match_trigger_when_not_a_match():
+    _seed_list("boys", ["Aaron"])
+    client = _client_for("Ramses")
+    r = client.post(
+        "/lists/swipe",
+        data={"name": "Aaron", "list": "boys", "direction": str(LIKE)},
+    )
+    assert r.status_code == 200
+    assert "HX-Trigger" not in r.headers
 
 
 def test_lists_unswipe_clears_swipe():
@@ -177,7 +218,6 @@ def test_lists_delete_removes_manual_name_for_both_users():
     client = _client_for("Ramses")
     r = client.post("/lists/delete", data={"name": "Atlas", "list": "boys"})
     assert r.status_code == 200
-    # response is an empty body so HTMX swaps the row out
     assert r.text == ""
 
     from baby_names_swiper.names import load_manual_names  # noqa: PLC0415
@@ -198,21 +238,21 @@ def test_lists_swipe_rejects_unknown_list():
 
 
 def test_lists_rows_paginates_with_next_offset():
-    # Seed enough names that there's more than one page.
     big = [f"Name{i:03d}" for i in range(120)]
     _seed_list("boys", big)
     client = _client_for("Ramses")
-    r = client.get("/lists", params={"list": "boys", "order": "alpha"})
+    r = client.get(
+        "/lists",
+        params=[("list", "boys"), ("order", "alpha"), ("state", "unswiped")],
+    )
     assert r.status_code == 200
-    # The infinite-scroll trigger references the next batch URL.
     assert "/lists/rows" in r.text
     assert "offset=50" in r.text
 
     r2 = client.get(
         "/lists/rows",
-        params={"list": "boys", "order": "alpha", "offset": "50"},
+        params=[("list", "boys"), ("order", "alpha"), ("state", "unswiped"), ("offset", "50")],
     )
     assert r2.status_code == 200
-    # Page 2 starts with Name050 and references offset=100 for page 3
     assert "Name050" in r2.text
     assert "offset=100" in r2.text

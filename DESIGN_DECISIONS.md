@@ -101,8 +101,10 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 
 ### Mode and list switching
 
-- Changing list, order, or the reswipe checkbox triggers a full page reload (no in-place swap).
-- An unknown list slug falls back silently to the first available list rather than 404'ing.
+- The list, order, and state filter controls are multi-select and shared with `/lists`; the two pages always see the same deck.
+- Changing any control triggers a full page reload (no in-place swap).
+- An unknown list slug from the URL is silently dropped from the selection.
+- A new shuffle is only minted when the reshuffle button is pressed or when the browser session is brand new; control changes never reshuffle.
 
 ## Deck composition
 
@@ -112,12 +114,20 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - "random" weights the shuffle: names the partner liked are 5x more likely to show, names the partner disliked 5x less likely.
 - "alpha" shows names case-folded A-Z.
 - "partner likes only" filters the deck to names the partner liked and then sorts alphabetically.
-- The random shuffle is seeded per (user, list, order) so the order is stable across reloads in the same session.
+- The random shuffle is seeded per (user, lists, state filters, order, shuffle token); the token lives in a session cookie so the order is stable across reloads, page switches, and control changes.
 
-### Reswipe
+### State filter
 
-- "reswipe disliked" re-includes names the active user previously disliked, so dislikes can be revisited.
-- Likes are never replayed; once liked, a name stays out of the deck.
+- Three independent checkboxes (likes / dislikes / unswiped) decide which names are included in the deck, replacing the old "reswipe disliked" toggle.
+- Unchecking everything yields an empty deck.
+- Re-swiping a previously-decided name upserts the swipe; there is no separate "reswipe" mode.
+
+## Shared deck state
+
+- `/swipe` and `/lists` are two views over the same deck; switching between them preserves order, list selection, and state filter.
+- List selection, state filter, and shuffle token persist via session cookies (`bns_view_lists`, `bns_view_states`, `bns_shuffle`); they clear when the browser closes.
+- `?shuffle=...`, `?list=...`, `?state=...` in the URL are honored as overrides; the app writes the resolved selection back to cookies but never bakes the shuffle token into URLs.
+- The reshuffle button is the only in-app way to mint a fresh token (in addition to a fresh browser session).
 
 ## Matching
 
@@ -180,10 +190,10 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 ### View, order, filter
 
 - A "View" selector toggles between Card (responsive grid) and Table (one-per-row dense list); Card is the default.
-- The "order" selector mirrors the swipe page's order options (random-weighted, alphabetical, partner-likes-only) so the same name sequence can be reviewed without context switching.
-- A "reshuffle" button appears next to the order selector only when order is random; clicking it picks a fresh shuffle for the current selection without affecting the swipe deck's order.
-- The shuffle token rides in the URL so the reshuffled order is stable across infinite-scroll pagination, refreshes, and changes to other controls; it resets when the user clicks reshuffle again or switches order.
-- The "Filter" control is three independent checkboxes (likes / dislikes / unswiped), all on by default; the user can toggle any combination, and unchecking all yields an empty body.
+- The "order" selector mirrors the swipe page's order options (random-weighted, alphabetical, partner-likes-only); both pages share the same deck so the sequence stays identical.
+- A "reshuffle" button appears only when order is random; it submits a POST that clears the shuffle cookie and bounces back, so the next render mints a fresh token.
+- The shuffle token is stored in a session cookie (not the URL); refreshes, pagination, control changes, and switching between `/swipe` and `/lists` all keep the same order.
+- The "Filter" control is three independent checkboxes (likes / dislikes / unswiped). Unchecking all yields an empty body. First-time visits default to "unswiped" only.
 - Filtering is applied after ordering so the user's chosen sequence is preserved within each state bucket.
 
 ### Loading
@@ -195,6 +205,7 @@ A log of UX and product decisions for the app. Grouped by area, then by feature.
 - Each row has a Nope / Undo / Like triple; the currently active state is highlighted so the row reads as its current decision.
 - The middle Undo button clears any swipe (like or dislike) for that name; it's the gray neutral state.
 - A red x delete button appears only on manually-added names and removes the name from the list entirely for both users (same semantics as the overview page's "delete").
+- A Like that creates a new match fires the same celebration overlay as `/swipe`, driven by an `HX-Trigger: matchCreated` header on the row response.
 
 ### Row visuals
 

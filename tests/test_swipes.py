@@ -9,6 +9,9 @@ from baby_names_swiper.swipes import (
     ORDER_ALPHA,
     ORDER_PARTNER_LIKES,
     ORDER_RANDOM,
+    STATE_DISLIKE,
+    STATE_LIKE,
+    STATE_UNSWIPED,
     absorb_added_name,
     get_deck,
     overview,
@@ -18,6 +21,9 @@ from baby_names_swiper.swipes import (
     reset_list,
     undo_last,
 )
+
+UNSWIPED_ONLY = frozenset({STATE_UNSWIPED})
+ALL_FILTERS = frozenset({STATE_LIKE, STATE_DISLIKE, STATE_UNSWIPED})
 
 
 def _seed_list(slug: str, names: list[str]) -> None:
@@ -87,18 +93,17 @@ def test_remove_swipe_only_touches_that_users_rows():
     record("Chiara", "boys", "Aaron", LIKE)
     remove_swipe("Ramses", "boys", "Aaron")
     assert overview("Ramses", "boys").my_likes == []
-    # partner's swipe is untouched
     assert overview("Chiara", "boys").my_likes == ["Aaron"]
 
 
 def test_removed_name_reenters_the_deck():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
     record("Ramses", "boys", "Aaron", LIKE)
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
-    assert "Aaron" not in deck.names  # excluded while swiped
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
+    assert "Aaron" not in deck.names  # excluded while liked
     remove_swipe("Ramses", "boys", "Aaron")
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
-    assert "Aaron" in deck.names  # back in the pool after removal
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
+    assert "Aaron" in deck.names
 
 
 def test_reset_list_clears_all_of_users_swipes():
@@ -122,9 +127,7 @@ def test_reset_list_only_touches_that_user_and_list():
     record("Chiara", "boys", "Aaron", LIKE)
     reset_list("Ramses", "boys")
     assert overview("Ramses", "boys").my_likes == []
-    # other list untouched
     assert overview("Ramses", "girls").my_likes == ["Anna"]
-    # partner untouched
     assert overview("Chiara", "boys").my_likes == ["Aaron"]
 
 
@@ -140,7 +143,7 @@ def test_reset_list_returns_zero_when_nothing_to_clear():
 
 def test_alpha_deck_is_in_alphabetical_order():
     _seed_list("boys", ["Cas", "Aaron", "Bram"])
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.names == ["Aaron", "Bram", "Cas"]
     assert deck.current() == "Aaron"
     assert deck.lookahead() == "Bram"
@@ -148,7 +151,7 @@ def test_alpha_deck_is_in_alphabetical_order():
 
 def test_deck_advance_and_current_lookahead():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.current() == "Aaron"
     deck.advance()
     assert deck.current() == "Bram"
@@ -162,18 +165,17 @@ def test_deck_advance_and_current_lookahead():
 
 def test_deck_is_cached_per_combination():
     _seed_list("boys", ["Aaron", "Bram"])
-    d1 = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    d1 = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     d1.advance()
-    d2 = get_deck("Ramses", "boys", order=ORDER_ALPHA)
-    # same object, position preserved
+    d2 = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert d2 is d1
     assert d2.position == 1
 
 
 def test_different_mode_gets_a_different_deck():
     _seed_list("boys", ["Aaron", "Bram"])
-    d_alpha = get_deck("Ramses", "boys", order=ORDER_ALPHA)
-    d_random = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    d_alpha = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
+    d_random = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
     assert d_alpha is not d_random
 
 
@@ -181,49 +183,123 @@ def test_partner_likes_deck_only_has_partner_likes():
     _seed_list("boys", ["Aaron", "Bram", "Cas", "Dex"])
     record("Chiara", "boys", "Bram", LIKE)
     record("Chiara", "boys", "Cas", LIKE)
-    record("Chiara", "boys", "Aaron", DISLIKE)  # not eligible
-    deck = get_deck("Ramses", "boys", order=ORDER_PARTNER_LIKES)
+    record("Chiara", "boys", "Aaron", DISLIKE)
+    deck = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_PARTNER_LIKES,
+        state_filters=UNSWIPED_ONLY,
+    )
     assert deck.names == ["Bram", "Cas"]
 
 
 def test_partner_likes_deck_empty_when_partner_has_no_likes():
     _seed_list("boys", ["Aaron", "Bram"])
-    deck = get_deck("Ramses", "boys", order=ORDER_PARTNER_LIKES)
+    deck = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_PARTNER_LIKES,
+        state_filters=UNSWIPED_ONLY,
+    )
     assert deck.names == []
     assert deck.current() is None
 
 
 # --------------------------------------------------------------------------- #
-#                            reswipe / reconcile                              #
+#                          state filters + reconcile                          #
 # --------------------------------------------------------------------------- #
 
 
-def test_deck_excludes_already_swiped_names():
+def test_deck_excludes_already_swiped_names_with_unswiped_filter():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
     record("Ramses", "boys", "Aaron", LIKE)
     record("Ramses", "boys", "Bram", DISLIKE)
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.names == ["Cas"]
 
 
-def test_reswipe_deck_reincludes_own_dislikes_not_likes():
+def test_dislike_only_filter_returns_disliked_names():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
     record("Ramses", "boys", "Aaron", LIKE)
     record("Ramses", "boys", "Bram", DISLIKE)
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA, reswipe_disliked=True)
-    # Bram (disliked) comes back, Aaron (liked) stays gone
-    assert deck.names == ["Bram", "Cas"]
+    deck = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_ALPHA,
+        state_filters=frozenset({STATE_DISLIKE}),
+    )
+    assert deck.names == ["Bram"]
+
+
+def test_like_and_unswiped_filter_excludes_dislikes():
+    _seed_list("boys", ["Aaron", "Bram", "Cas"])
+    record("Ramses", "boys", "Aaron", LIKE)
+    record("Ramses", "boys", "Bram", DISLIKE)
+    deck = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_ALPHA,
+        state_filters=frozenset({STATE_LIKE, STATE_UNSWIPED}),
+    )
+    assert deck.names == ["Aaron", "Cas"]
+
+
+def test_empty_state_filter_yields_empty_deck():
+    _seed_list("boys", ["Aaron"])
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=frozenset())
+    assert deck.names == []
 
 
 def test_reconcile_skips_cursor_past_newly_swiped_name():
     _seed_list("boys", ["Aaron", "Bram", "Cas"])
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.current() == "Aaron"
-    # a swipe happens through some other path (e.g. a different deck object)
     record("Ramses", "boys", "Aaron", LIKE)
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
-    # cursor reconciled forward past the now-swiped Aaron
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.current() == "Bram"
+
+
+# --------------------------------------------------------------------------- #
+#                                   multi-list                                #
+# --------------------------------------------------------------------------- #
+
+
+def test_multi_list_deck_unions_pools_deduped_and_records_source():
+    _seed_list("boys", ["Aaron", "Robin"])
+    _seed_list("unisex", ["Robin", "Sam"])
+    deck = get_deck(
+        "Ramses",
+        ["boys", "unisex"],
+        order=ORDER_ALPHA,
+        state_filters=UNSWIPED_ONLY,
+    )
+    assert deck.names == ["Aaron", "Robin", "Sam"]
+    # boys wins the dedupe for "Robin" (it's first in the list_slugs order)
+    assert deck.source_of("Aaron") == "boys"
+    assert deck.source_of("Robin") == "boys"
+    assert deck.source_of("Sam") == "unisex"
+
+
+def test_multi_list_deck_state_filter_uses_per_list_state():
+    _seed_list("boys", ["Aaron"])
+    _seed_list("girls", ["Aaron"])  # same name in both lists, but separate slugs
+    record("Ramses", "boys", "Aaron", LIKE)  # liked in boys, unswiped in girls
+    # source attribution picks "boys" first, so this Aaron is "liked"; the
+    # likes-only filter should keep it, the unswiped filter should drop it.
+    deck_likes = get_deck(
+        "Ramses",
+        ["boys", "girls"],
+        order=ORDER_ALPHA,
+        state_filters=frozenset({STATE_LIKE}),
+    )
+    assert deck_likes.names == ["Aaron"]
+    deck_unswiped = get_deck(
+        "Ramses",
+        ["boys", "girls"],
+        order=ORDER_ALPHA,
+        state_filters=UNSWIPED_ONLY,
+    )
+    assert deck_unswiped.names == []
 
 
 # --------------------------------------------------------------------------- #
@@ -232,12 +308,10 @@ def test_reconcile_skips_cursor_past_newly_swiped_name():
 
 
 def test_order_is_stable_across_undo():
-    """The core requirement: undo replays the same sequence."""
     _seed_list("boys", ["A", "B", "C", "D", "E"])
-    deck = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
     original_order = list(deck.names)
 
-    # swipe the first three in deck order
     swiped_seq = []
     for _ in range(3):
         name = deck.current()
@@ -247,33 +321,53 @@ def test_order_is_stable_across_undo():
         deck.advance()
     assert swiped_seq == original_order[:3]
 
-    # undo the last swipe
     restored = undo_last("Ramses", "boys")
     assert restored == swiped_seq[-1]
-    deck = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
     deck.rewind()
 
-    # the deck order is unchanged and the cursor points back at the undone name
     assert deck.names == original_order
     assert deck.current() == swiped_seq[-1]
-    # continuing forward yields the same remaining sequence
     deck.advance()
     assert deck.current() == original_order[3]
 
 
 def test_random_order_is_deterministic_for_same_inputs():
     _seed_list("boys", ["A", "B", "C", "D", "E", "F", "G", "H"])
-    first = get_deck("Ramses", "boys", order=ORDER_RANDOM).names
+    first = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_RANDOM,
+        state_filters=UNSWIPED_ONLY,
+        shuffle="abcd1234",
+    ).names
     reset_decks()
-    second = get_deck("Ramses", "boys", order=ORDER_RANDOM).names
+    second = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_RANDOM,
+        state_filters=UNSWIPED_ONLY,
+        shuffle="abcd1234",
+    ).names
     assert first == second
 
 
 def test_random_order_differs_between_users():
     _seed_list("boys", ["A", "B", "C", "D", "E", "F", "G", "H"])
-    ramses = get_deck("Ramses", "boys", order=ORDER_RANDOM).names
-    chiara = get_deck("Chiara", "boys", order=ORDER_RANDOM).names
-    # extremely unlikely to coincide for 8 names with distinct seeds
+    ramses = get_deck(
+        "Ramses",
+        ["boys"],
+        order=ORDER_RANDOM,
+        state_filters=UNSWIPED_ONLY,
+        shuffle="abcd1234",
+    ).names
+    chiara = get_deck(
+        "Chiara",
+        ["boys"],
+        order=ORDER_RANDOM,
+        state_filters=UNSWIPED_ONLY,
+        shuffle="abcd1234",
+    ).names
     assert ramses != chiara
 
 
@@ -284,27 +378,26 @@ def test_random_order_differs_between_users():
 
 def test_absorb_added_name_appends_to_random_deck():
     _seed_list("boys", ["A", "B", "C"])
-    deck = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
     original_order = list(deck.names)
 
     absorb_added_name("boys", "Zenith")
 
-    # same deck object, original order preserved, new name appended at end
-    same = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    same = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
     assert same is deck
     assert same.names == [*original_order, "Zenith"]
+    assert same.source_of("Zenith") == "boys"
 
 
 def test_absorb_added_name_rebuilds_alpha_deck():
     _seed_list("boys", ["B", "D"])
-    deck = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert deck.names == ["B", "D"]
 
-    # the new name needs to land between B and D, which only happens on rebuild
     (config.NAMES_DIR / "boys.csv").write_text("B\nC\nD\n", encoding="utf-8")
     absorb_added_name("boys", "C")
 
-    rebuilt = get_deck("Ramses", "boys", order=ORDER_ALPHA)
+    rebuilt = get_deck("Ramses", ["boys"], order=ORDER_ALPHA, state_filters=UNSWIPED_ONLY)
     assert rebuilt is not deck
     assert rebuilt.names == ["B", "C", "D"]
 
@@ -315,8 +408,6 @@ def test_absorb_added_name_rebuilds_alpha_deck():
 
 
 def test_random_order_front_loads_partner_likes():
-    # 30 names: 5 liked by partner, 5 disliked, 20 neutral.
-    # With weights 5 : 1 : 0.2 the partner-likes should cluster near the front.
     names = [f"name{i:02d}" for i in range(30)]
     _seed_list("boys", names)
     likes = set(names[:5])
@@ -326,7 +417,7 @@ def test_random_order_front_loads_partner_likes():
     for n in dislikes:
         record("Chiara", "boys", n, DISLIKE)
 
-    deck = get_deck("Ramses", "boys", order=ORDER_RANDOM)
+    deck = get_deck("Ramses", ["boys"], order=ORDER_RANDOM, state_filters=ALL_FILTERS)
     order = deck.names
     positions = {n: order.index(n) for n in order}
 
@@ -335,14 +426,10 @@ def test_random_order_front_loads_partner_likes():
     neutral = [n for n in names if n not in likes and n not in dislikes]
     avg_neutral = sum(positions[n] for n in neutral) / len(neutral)
 
-    # likes earlier than neutral earlier than dislikes
     assert avg_like < avg_neutral < avg_dislike
 
 
 def test_weighted_order_counts_dominated_by_partner_likes():
-    # Statistical check across many seeds: which name lands in slot 0 most.
-    # The seed depends on the list slug, so a fresh slug each iteration
-    # gives an independent draw while keeping a real (user, partner) pair.
     counts: Counter[str] = Counter()
     for i in range(400):
         reset_decks()
@@ -350,7 +437,7 @@ def test_weighted_order_counts_dominated_by_partner_likes():
         _seed_list(slug, ["L", "N", "D"])
         record("Chiara", slug, "L", LIKE)
         record("Chiara", slug, "D", DISLIKE)
-        deck = get_deck("Ramses", slug, order=ORDER_RANDOM)
+        deck = get_deck("Ramses", [slug], order=ORDER_RANDOM, state_filters=UNSWIPED_ONLY)
         first = deck.current()
         assert first is not None
         counts[first] += 1

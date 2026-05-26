@@ -1,4 +1,7 @@
-<div class="card card-behind" id="card-next" data-card-next data-name="{{ next_name }}"{% if match_name %} data-match-name="{{ match_name }}"{% endif %}>
+<div class="card card-behind" id="card-next" data-card-next
+     data-name="{{ next_name }}"
+     data-source-list="{{ next_source or '' }}"
+     {% if match_name %}data-match-name="{{ match_name }}"{% endif %}>
     <div class="stamp stamp-like">like</div>
     <div class="stamp stamp-nope">nope</div>
     <div class="name">{{ next_name }}</div>

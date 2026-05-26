@@ -4,32 +4,23 @@
         <img src="/static/logos/favicon.svg" alt="" class="nav-logo-img nav-logo-mark" aria-hidden="true">
     </a>
 
-    {# Active user lives outside .nav-links so it stays visible on mobile when
-       the rest of the menu collapses behind the hamburger. The chip is a
-       direct link to /who so clicking it goes straight to the picker -- no
-       dropdown indirection. #}
     {% if user is defined and user %}
     <div class="nav-user-mobile">
         <a href="/who" class="nav-user-link">User: {{ user }}</a>
     </div>
     {% endif %}
 
-    {# Hamburger: hidden on desktop, shown on narrow screens (see my-design.css).
-       nav.js toggles the .open class on #nav when this is clicked. #}
     <button class="nav-hamburger" aria-label="Toggle menu">
         <span></span><span></span><span></span>
     </button>
 
     <ul class="nav-links">
+        {# The /swipe and /lists links don't carry list/order/state params --
+           the session cookies sync the selection between the two pages. #}
         <li><a href="/swipe" class="{% if request.url.path == '/swipe' %}active{% endif %}">swipe names</a></li>
-        <li><a href="/lists{% if active_list is defined and active_list %}?list={{ active_list }}{% endif %}" class="{% if request.url.path == '/lists' %}active{% endif %}">scroll names</a></li>
+        <li><a href="/lists" class="{% if request.url.path == '/lists' %}active{% endif %}">scroll names</a></li>
         <li><a href="/overview" class="{% if request.url.path == '/overview' %}active{% endif %}">overview</a></li>
 
-        {# "Add name(s)" dropdown -- replaces the old "upload" link and "+ name"
-           dropdown. The menu has two items: a link to the upload page, and a
-           toggle that reveals an inline add-name form inside the same panel.
-           Clicking the toggle a second time closes the whole dropdown (handled
-           in nav.js). #}
         <li class="nav-dropdown nav-dropdown-clickable {% if request.url.path == '/upload' %}active{% endif %}">
             <span class="nav-dropdown-label">Add name(s)</span>
             <ul class="nav-dropdown-menu">
@@ -43,9 +34,6 @@
                         <input type="hidden" name="list" value="{{ active_list }}">
                         {% if active_order is defined and active_order %}
                         <input type="hidden" name="order" value="{{ active_order }}">
-                        {% endif %}
-                        {% if reswipe is defined and reswipe %}
-                        <input type="hidden" name="reswipe" value="1">
                         {% endif %}
                         <input type="text" name="name" placeholder="add a name&hellip;"
                                maxlength="50" autocomplete="off" required>

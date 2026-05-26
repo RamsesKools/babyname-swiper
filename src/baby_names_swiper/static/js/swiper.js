@@ -1,4 +1,4 @@
-// Swipe UX: drag, fly-away animation, keyboard, confetti.
+// Swipe UX: drag, fly-away animation, keyboard.
 //
 // Speed model — two cards are always in the DOM:
 //   #card        the active card you swipe
@@ -8,11 +8,12 @@
 // animate the old card away on top, and fire the POST in the background.
 // The POST records the swipe and returns the next lookahead card, which we
 // drop in behind. Result: the next name is on screen the instant you swipe.
+//
+// Match-celebration overlay lives in match.js as a shared helper.
 
 const SWIPE_THRESHOLD = 110;       // px drag distance to count as a swipe
 const FLY_DURATION_MS = 380;       // matches CSS .fly-* transition + a buffer
 const GLOW_HOLD_MS = 160;          // brief glow flash before the fly-away starts
-const MATCH_HOLD_MS = 10000;       // how long the new-match celebration stays up
 
 // ---- DOM helpers ----
 
@@ -36,9 +37,7 @@ function deckConfig() {
     const d = deck();
     if (!d) return null;
     return {
-        list: d.dataset.list,
         order: d.dataset.order || "random",
-        reswipe: d.dataset.reswipe || "0",
         shuffle: d.dataset.shuffle || "",
     };
 }
@@ -46,6 +45,10 @@ function deckConfig() {
 // ---- swipe core ----
 
 let swiping = false;
+
+// match.js calls into these so the celebration can pause the deck.
+window.acquireSwipingLock = () => { swiping = true; };
+window.releaseSwipingLock = () => { swiping = false; };
 
 function swipe(direction, { skipGlow = false } = {}) {
     if (swiping) {
@@ -57,13 +60,13 @@ function swipe(direction, { skipGlow = false } = {}) {
         return;
     }
     if (!upcoming) {
-        // lookahead hasn't arrived yet (very fast double-swipe) — ignore
         return;
     }
     swiping = true;
 
     const cfg = deckConfig();
     const swipedName = active.dataset.name;
+    const sourceList = active.dataset.sourceList || "";
     const flyClass = direction === "like" ? "fly-right" : "fly-left";
     const glowClass = direction === "like" ? "glow-like" : "glow-nope";
 
@@ -73,31 +76,24 @@ function swipe(direction, { skipGlow = false } = {}) {
     const lastCard = upcoming.hasAttribute("data-card-next-empty");
 
     const launch = () => {
-        // 1. confetti from the still-centered card
         if (direction === "like") {
-            burstConfetti(active);
+            window.burstConfetti(active);
         }
-        // 2. fly the old card away
         active.classList.add(flyClass);
         active.removeAttribute("id");
         active.removeAttribute("data-card");
         setTimeout(() => active.remove(), FLY_DURATION_MS);
 
         if (lastCard) {
-            // no real card left — record, then rebuild the deck end state
-            commitLastSwipe(direction, swipedName, cfg);
+            commitLastSwipe(direction, swipedName, sourceList, cfg);
             return;
         }
 
-        // 3. promote the lookahead card to active — instant, already in DOM
         promoteNextToActive(upcoming);
-
-        // 4. allow the next swipe right away
         swiping = false;
 
-        // 5. record + fetch the new lookahead in the background
-        if (swipedName) {
-            commitSwipe(direction, swipedName, cfg);
+        if (swipedName && sourceList) {
+            commitSwipe(direction, swipedName, sourceList, cfg);
         }
     };
 
@@ -119,43 +115,39 @@ function promoteNextToActive(upcoming) {
     upcoming.setAttribute("data-card", "");
 }
 
-function swipeBody(direction, swipedName, cfg) {
+function swipeBody(direction, swipedName, sourceList, cfg) {
     const params = new URLSearchParams({
         name: swipedName,
         direction: direction === "like" ? "1" : "0",
-        list: cfg.list,
+        list: sourceList,
         order: cfg.order,
-        reswipe: cfg.reswipe,
     });
     if (cfg.shuffle) params.set("shuffle", cfg.shuffle);
     return params;
 }
 
-function commitSwipe(direction, swipedName, cfg) {
+function commitSwipe(direction, swipedName, sourceList, cfg) {
     fetch("/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: swipeBody(direction, swipedName, cfg),
+        body: swipeBody(direction, swipedName, sourceList, cfg),
     })
         .then((r) => r.text())
         .then((html) => {
             const stack = cardStack();
             if (!stack) return;
-            // drop the fresh lookahead behind the active card
             const existing = nextCard();
             if (existing) {
                 existing.remove();
             }
             stack.insertAdjacentHTML("beforeend", html.trim());
-            // the freshly-inserted lookahead carries the match flag for the
-            // name we just swiped; pull it off and run the celebration
             const fresh = nextCard();
             const matchName = fresh && fresh.dataset.matchName;
             if (fresh) {
                 fresh.removeAttribute("data-match-name");
             }
             if (matchName) {
-                showMatchCelebration(matchName);
+                window.showMatchCelebration(matchName);
             }
         })
         .catch(() => {
@@ -164,9 +156,9 @@ function commitSwipe(direction, swipedName, cfg) {
 }
 
 // last real card swiped: record it, then rebuild the whole deck so the
-// proper end-of-list state renders (avoids a stranded empty placeholder).
-// The deck swap waits out the fly-away animation so the card leaves cleanly.
-function commitLastSwipe(direction, swipedName, cfg) {
+// proper end-of-list state renders. The deck swap waits out the fly-away
+// animation so the card leaves cleanly.
+function commitLastSwipe(direction, swipedName, sourceList, cfg) {
     const animationDone = new Promise((resolve) => {
         setTimeout(resolve, FLY_DURATION_MS);
     });
@@ -174,18 +166,14 @@ function commitLastSwipe(direction, swipedName, cfg) {
     fetch("/swipe", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: swipeBody(direction, swipedName, cfg),
+        body: swipeBody(direction, swipedName, sourceList, cfg),
     })
         .then((r) => r.text())
         .then((postHtml) => {
-            // the POST response is the empty lookahead fragment; it carries
-            // the match flag for the name we just swiped
             const frag = new DOMParser().parseFromString(postHtml, "text/html");
             const el = frag.querySelector("[data-match-name]");
             matchName = el ? el.getAttribute("data-match-name") : null;
-            let url = `/swipe?list=${encodeURIComponent(cfg.list)}`
-                + `&order=${encodeURIComponent(cfg.order)}`
-                + `&reswipe=${encodeURIComponent(cfg.reswipe)}`;
+            let url = `/swipe?order=${encodeURIComponent(cfg.order)}`;
             if (cfg.shuffle) {
                 url += `&shuffle=${encodeURIComponent(cfg.shuffle)}`;
             }
@@ -194,7 +182,6 @@ function commitLastSwipe(direction, swipedName, cfg) {
         .then((r) => r.text())
         .then((html) => Promise.all([html, animationDone]))
         .then(([html]) => {
-            // pull just the #deck fragment out of the full page response
             const doc = new DOMParser().parseFromString(html, "text/html");
             const freshDeck = doc.getElementById("deck");
             const currentDeck = deck();
@@ -203,7 +190,7 @@ function commitLastSwipe(direction, swipedName, cfg) {
             }
             swiping = false;
             if (matchName) {
-                showMatchCelebration(matchName);
+                window.showMatchCelebration(matchName);
             }
         })
         .catch(() => {
@@ -214,11 +201,7 @@ function commitLastSwipe(direction, swipedName, cfg) {
 function undo() {
     const cfg = deckConfig();
     if (!cfg) return;
-    const body = new URLSearchParams({
-        list: cfg.list,
-        order: cfg.order,
-        reswipe: cfg.reswipe,
-    });
+    const body = new URLSearchParams({ order: cfg.order });
     if (cfg.shuffle) body.set("shuffle", cfg.shuffle);
     fetch("/swipe/undo", {
         method: "POST",
@@ -255,28 +238,15 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-// ---- swipe controls (list / order / reswipe) reload the page on change ----
+// ---- swipe controls (list / order / state) submit the form on change ----
 
-document.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!target || !target.dataset || !target.dataset.control) {
-        return;
-    }
-    const key = target.dataset.control;
-    const url = new URL(window.location.href);
-    if (target.type === "checkbox") {
-        if (target.checked) {
-            url.searchParams.set(key, "1");
-        } else {
-            url.searchParams.delete(key);
-        }
-    } else {
-        url.searchParams.set(key, target.value);
-    }
-    // The shuffle token already in the URL is preserved across control changes
-    // by re-using the existing URL above. Nothing extra to do for list/reswipe.
-    window.location.href = url.toString();
-});
+(function () {
+    const form = document.getElementById("swipe-controls");
+    if (!form) return;
+    form.addEventListener("change", () => {
+        form.submit();
+    });
+})();
 
 // ---- button clicks ----
 
@@ -292,18 +262,6 @@ document.body.addEventListener("click", (event) => {
         undo();
     }
 });
-
-// ---- reshuffle button: drop the shuffle token from the URL and reload so
-// the server mints a fresh one. ----
-
-const reshuffleBtn = document.getElementById("swipe-reshuffle");
-if (reshuffleBtn) {
-    reshuffleBtn.addEventListener("click", () => {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("shuffle");
-        window.location.href = url.toString();
-    });
-}
 
 // ---- drag / pointer gestures ----
 
@@ -386,80 +344,3 @@ document.addEventListener("pointerdown", onPointerDown);
 document.addEventListener("pointermove", onPointerMove);
 document.addEventListener("pointerup", onPointerUp);
 document.addEventListener("pointercancel", onPointerUp);
-
-// ---- confetti ----
-
-const CONFETTI_COLORS = ["#3E77DC", "#70AE6E", "#F29559", "#F55D3E", "#A8C3F0"];
-
-function burstConfetti(originEl) {
-    const rect = originEl.getBoundingClientRect();
-    const ox = rect.left + rect.width / 2;
-    const oy = rect.top + rect.height / 2;
-    const count = 28;
-    for (let i = 0; i < count; i++) {
-        const piece = document.createElement("div");
-        piece.className = "confetti-piece";
-        piece.style.left = `${ox}px`;
-        piece.style.top = `${oy}px`;
-        piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
-        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
-        const distance = 140 + Math.random() * 160;
-        const dx = Math.cos(angle) * distance;
-        const dy = Math.sin(angle) * distance + 200;
-        piece.style.setProperty("--dx", `${dx}px`);
-        piece.style.setProperty("--dy", `${dy}px`);
-        piece.style.setProperty("--rot", `${(Math.random() - 0.5) * 720}deg`);
-        document.body.appendChild(piece);
-        setTimeout(() => piece.remove(), 950);
-    }
-}
-
-// ---- new-match celebration ----
-//
-// When a like creates a match, a celebration card pops in over the deck:
-// green glow, a "YOU BOTH LIKED" stamp, and a shout-out banner. Swiping is
-// frozen for MATCH_HOLD_MS; clicking the card dismisses it early.
-
-let matchCelebrationActive = false;
-
-function dismissMatchCelebration(overlay) {
-    if (!overlay || !overlay.isConnected) {
-        return;
-    }
-    overlay.classList.add("match-overlay-out");
-    setTimeout(() => overlay.remove(), 250);
-    matchCelebrationActive = false;
-    swiping = false;
-}
-
-function showMatchCelebration(name) {
-    if (matchCelebrationActive) {
-        return;
-    }
-    matchCelebrationActive = true;
-    // block swiping for the duration of the celebration
-    swiping = true;
-
-    const overlay = document.createElement("div");
-    overlay.className = "match-overlay";
-    overlay.innerHTML = `
-        <div class="match-shout">It's a match!</div>
-        <div class="card match-card glow-like">
-            <div class="stamp stamp-match">you both liked</div>
-            <div class="name">${name}</div>
-            <div class="meta">tap to continue</div>
-        </div>
-        <div class="match-hint">you both swiped right</div>
-    `;
-    document.body.appendChild(overlay);
-
-    const card = overlay.querySelector(".match-card");
-    burstConfetti(card);
-    // a second burst part-way through keeps the celebration lively
-    setTimeout(() => {
-        if (overlay.isConnected) burstConfetti(card);
-    }, 600);
-
-    overlay.addEventListener("click", () => dismissMatchCelebration(overlay));
-    setTimeout(() => dismissMatchCelebration(overlay), MATCH_HOLD_MS);
-}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 from urllib.parse import urlencode, urlparse
@@ -15,7 +16,7 @@ from fastapi.templating import Jinja2Templates
 from baby_names_swiper.config import COOKIE_NAME, MAX_UPLOAD_BYTES, USERS
 from baby_names_swiper.db import init_db
 from baby_names_swiper.deps import read_user, sign_user
-from baby_names_swiper.lists_view import NameRow, build_rows, normalise_states, normalise_view
+from baby_names_swiper.lists_view import NameRow, build_rows, normalise_view
 from baby_names_swiper.names import (
     add_manual_name,
     list_available_lists,
@@ -29,6 +30,7 @@ from baby_names_swiper.swipes import (
     DISLIKE,
     LIKE,
     ORDER_RANDOM,
+    STATE_UNSWIPED,
     VALID_ORDERS,
     absorb_added_name,
     get_deck,
@@ -41,6 +43,7 @@ from baby_names_swiper.swipes import (
     remove_swipe,
     reset_list,
     undo_last,
+    undo_last_across,
 )
 
 if TYPE_CHECKING:
@@ -51,6 +54,12 @@ _STATIC_DIR = _PKG_DIR / "static"
 _TEMPLATES_DIR = _PKG_DIR / "templates"
 
 WhoCookie = Annotated[str | None, Cookie(alias=COOKIE_NAME)]
+
+# Session cookies shared by /swipe and /lists. SameSite=Lax, no max-age so they
+# drop when the browser closes.
+BNS_SHUFFLE = "bns_shuffle"
+BNS_LISTS = "bns_view_lists"
+BNS_STATES = "bns_view_states"
 
 
 @asynccontextmanager
@@ -71,47 +80,86 @@ def _user_or_redirect(who: str | None) -> str | RedirectResponse:
     return user
 
 
-def _resolve_list(slug: str | None) -> str:
-    """Pick the requested list or fall back to the first available."""
-    available = list_available_lists()
-    if not available:
-        raise HTTPException(
-            status_code=503,
-            detail="No name lists found. Run `uv run task scrape` to generate them.",
-        )
-    if slug:
-        for nl in available:
-            if nl.slug == slug:
-                return slug
-    return available[0].slug
-
-
 def _resolve_order(order: str | None) -> str:
     if order in VALID_ORDERS:
         return order
     return ORDER_RANDOM
 
 
-def _redirect_with_shuffle(
-    request: Request,
-    *,
-    extra_params: list[tuple[str, str]] | None = None,
-) -> RedirectResponse:
-    """Redirect back to the current path with a freshly minted `shuffle` token.
+# --------------------------------------------------------------------------- #
+#                              cookie / param resolution                      #
+# --------------------------------------------------------------------------- #
 
-    Used when a GET arrives at a page that needs a stable per-session shuffle
-    seed (random order, no token in URL). The token is baked into the URL so
-    refresh keeps the order, and so any further navigation can carry it.
+
+def _split_cookie_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [s for s in value.split(",") if s]
+
+
+def _resolve_shuffle(
+    query_shuffle: str | None,
+    cookie_shuffle: str | None,
+    *,
+    order: str,
+) -> str:
+    """Resolve the active shuffle token.
+
+    URL override > cookie > freshly minted. Returns a non-empty token; for
+    non-random orders the value is still tracked so cookies stay consistent
+    when the user toggles back to random.
     """
-    params: list[tuple[str, str]] = []
-    for key, value in request.query_params.multi_items():
-        if key == "shuffle":
-            continue
-        params.append((key, value))
-    if extra_params:
-        params.extend(extra_params)
-    params.append(("shuffle", new_shuffle_token()))
-    return RedirectResponse(url=f"{request.url.path}?{urlencode(params)}", status_code=303)
+    if query_shuffle:
+        return query_shuffle[:32]
+    if cookie_shuffle:
+        return cookie_shuffle[:32]
+    if order == ORDER_RANDOM:
+        return new_shuffle_token()
+    # Non-random first visit: store a token anyway so a future random selection
+    # gets a stable seed.
+    return new_shuffle_token()
+
+
+def _resolve_list_slugs(
+    query_lists: list[str] | None,
+    cookie_lists: str | None,
+) -> list[str]:
+    """URL > cookie > []. Filters to slugs that currently exist."""
+    available = {nl.slug for nl in list_available_lists()}
+    if query_lists is not None:
+        # Empty list in URL is explicit "deselect all" -> empty.
+        return [s for s in query_lists if s in available]
+    cookie_slugs = _split_cookie_csv(cookie_lists)
+    return [s for s in cookie_slugs if s in available]
+
+
+def _resolve_state_filters(
+    query_states: list[str] | None,
+    cookie_states: str | None,
+    *,
+    first_visit_default: frozenset[str] = frozenset({STATE_UNSWIPED}),
+) -> list[str]:
+    """URL > cookie > first-visit default. Empty selection is honored."""
+    if query_states is not None:
+        return [s for s in query_states if s in ALL_STATES]
+    if cookie_states is not None:
+        return [s for s in _split_cookie_csv(cookie_states) if s in ALL_STATES]
+    return sorted(first_visit_default)
+
+
+def _set_view_cookies(
+    response: Response,
+    *,
+    shuffle: str,
+    list_slugs: list[str],
+    state_filters: list[str],
+) -> None:
+    """Write all three view cookies on `response`. Session-lifetime, Lax."""
+    response.set_cookie(BNS_SHUFFLE, shuffle, httponly=True, samesite="lax", path="/")
+    response.set_cookie(BNS_LISTS, ",".join(list_slugs), httponly=True, samesite="lax", path="/")
+    response.set_cookie(
+        BNS_STATES, ",".join(state_filters), httponly=True, samesite="lax", path="/"
+    )
 
 
 @app.get("/healthz")
@@ -157,69 +205,94 @@ def logout() -> RedirectResponse:
     return response
 
 
+# --------------------------------------------------------------------------- #
+#                                  swipe page                                 #
+# --------------------------------------------------------------------------- #
+
+
 def _deck_context(
     *,
     user: str,
-    list_slug: str,
+    list_slugs: list[str],
     active_order: str,
-    reswipe_flag: bool,
+    state_filters: list[str],
     current: str | None,
+    current_source: str | None,
     lookahead: str | None,
-    shuffle: str | None = None,
+    lookahead_source: str | None,
+    shuffle: str,
 ) -> dict[str, object]:
+    # `active_list` is the single-selected list when there's exactly one (used
+    # by the header's "add single name" form). Otherwise None.
+    active_list = list_slugs[0] if len(list_slugs) == 1 else None
     return {
         "user": user,
-        "active_list": list_slug,
+        "selected_slugs": list_slugs,
+        "selected_set": set(list_slugs),
+        "active_list": active_list,
         "active_order": active_order,
-        "reswipe": reswipe_flag,
+        "active_states": state_filters,
+        "active_states_set": set(state_filters),
         "current_name": current,
+        "current_source": current_source,
         "next_name": lookahead,
-        "active_shuffle": shuffle or "",
+        "next_source": lookahead_source,
+        "active_shuffle": shuffle,
     }
 
 
 @app.get("/swipe", response_class=HTMLResponse)
 def swipe_page(
     request: Request,
-    list: str | None = None,  # noqa: A002
+    list: Annotated[list[str] | None, Query()] = None,  # noqa: A002
     order: str | None = None,
-    reswipe: int = 0,
+    state: Annotated[list[str] | None, Query()] = None,
     shuffle: str | None = None,
     who: WhoCookie = None,
+    bns_shuffle: Annotated[str | None, Cookie(alias=BNS_SHUFFLE)] = None,
+    bns_view_lists: Annotated[str | None, Cookie(alias=BNS_LISTS)] = None,
+    bns_view_states: Annotated[str | None, Cookie(alias=BNS_STATES)] = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         return user_or_redirect
     user = user_or_redirect
-    list_slug = _resolve_list(list)
     active_order = _resolve_order(order)
-    reswipe_flag = bool(reswipe)
-    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
-    # Random order without a token = fresh arrival. Mint a session token and
-    # bake it into the URL so refresh / back-forward / internal links keep
-    # the same order.
-    if active_order == ORDER_RANDOM and not active_shuffle:
-        return _redirect_with_shuffle(request)
+    list_slugs = _resolve_list_slugs(list, bns_view_lists)
+    state_filters = _resolve_state_filters(state, bns_view_states)
+    active_shuffle = _resolve_shuffle(shuffle, bns_shuffle, order=active_order)
+
     deck = get_deck(
         user,
-        list_slug,
+        list_slugs,
         order=active_order,
-        reswipe_disliked=reswipe_flag,
+        state_filters=frozenset(state_filters),
         shuffle=active_shuffle,
     )
+    current = deck.current()
+    lookahead = deck.lookahead()
     ctx: dict[str, object] = {
         "lists": list_available_lists(),
         **_deck_context(
             user=user,
-            list_slug=list_slug,
+            list_slugs=list_slugs,
             active_order=active_order,
-            reswipe_flag=reswipe_flag,
-            current=deck.current(),
-            lookahead=deck.lookahead(),
+            state_filters=state_filters,
+            current=current,
+            current_source=deck.source_of(current) if current else None,
+            lookahead=lookahead,
+            lookahead_source=deck.source_of(lookahead) if lookahead else None,
             shuffle=active_shuffle,
         ),
     }
-    return templates.TemplateResponse(request, "swipe.html", ctx)
+    response = templates.TemplateResponse(request, "swipe.html", ctx)
+    _set_view_cookies(
+        response,
+        shuffle=active_shuffle,
+        list_slugs=list_slugs,
+        state_filters=state_filters,
+    )
+    return response
 
 
 @app.post("/swipe", response_class=HTMLResponse)
@@ -229,16 +302,18 @@ def post_swipe(
     direction: Annotated[int, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     order: Annotated[str | None, Form()] = None,
-    reswipe: Annotated[int, Form()] = 0,
+    state: Annotated[list[str] | None, Form()] = None,
     shuffle: Annotated[str | None, Form()] = None,
     who: WhoCookie = None,
+    bns_shuffle: Annotated[str | None, Cookie(alias=BNS_SHUFFLE)] = None,
+    bns_view_lists: Annotated[str | None, Cookie(alias=BNS_LISTS)] = None,
+    bns_view_states: Annotated[str | None, Cookie(alias=BNS_STATES)] = None,
 ) -> HTMLResponse:
     """Record a swipe and return the next lookahead card.
 
-    The deck has a fixed order. Recording the swipe and re-fetching the deck
-    makes get_deck's reconcile step move the cursor past the just-swiped name,
-    so deck.current() is what the client just promoted and deck.lookahead()
-    is the fresh card to send back.
+    `list` here is the source list for the swiped card (from data-source-list
+    on the active card), not the user's whole selection. The deck rebuild
+    uses the full session selection so the next lookahead is correct.
     """
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
@@ -246,33 +321,38 @@ def post_swipe(
     user = user_or_redirect
     if direction not in (LIKE, DISLIKE):
         raise HTTPException(status_code=400, detail="bad direction")
-    list_slug = _resolve_list(list)
+    available = {nl.slug for nl in list_available_lists()}
+    if list not in available:
+        raise HTTPException(status_code=400, detail="Unknown list")
     active_order = _resolve_order(order)
-    reswipe_flag = bool(reswipe)
-    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
+    list_slugs = _resolve_list_slugs(None, bns_view_lists)
+    state_filters = _resolve_state_filters(state, bns_view_states)
+    active_shuffle = _resolve_shuffle(shuffle, bns_shuffle, order=active_order)
 
     swiped_name = name.strip()
-    record(user, list_slug, swiped_name, direction)
-    # a new match exists only when this swipe was a like and the partner had
-    # already liked the same name
-    new_match = direction == LIKE and is_match(user, list_slug, swiped_name)
+    record(user, list, swiped_name, direction)
+    new_match = direction == LIKE and is_match(user, list, swiped_name)
+
     deck = get_deck(
         user,
-        list_slug,
+        list_slugs,
         order=active_order,
-        reswipe_disliked=reswipe_flag,
+        state_filters=frozenset(state_filters),
         shuffle=active_shuffle,
     )
 
+    current = deck.current()
     lookahead = deck.lookahead()
     template = "_card_next.html" if lookahead else "_card_next_empty.html"
     ctx = _deck_context(
         user=user,
-        list_slug=list_slug,
+        list_slugs=list_slugs,
         active_order=active_order,
-        reswipe_flag=reswipe_flag,
-        current=deck.current(),
+        state_filters=state_filters,
+        current=current,
+        current_source=deck.source_of(current) if current else None,
         lookahead=lookahead,
+        lookahead_source=deck.source_of(lookahead) if lookahead else None,
         shuffle=active_shuffle,
     )
     ctx["match_name"] = swiped_name if new_match else None
@@ -282,44 +362,90 @@ def post_swipe(
 @app.post("/swipe/undo", response_class=HTMLResponse)
 def post_undo(
     request: Request,
-    list: Annotated[str, Form(alias="list")],  # noqa: A002
     order: Annotated[str | None, Form()] = None,
-    reswipe: Annotated[int, Form()] = 0,
+    state: Annotated[list[str] | None, Form()] = None,
     shuffle: Annotated[str | None, Form()] = None,
     who: WhoCookie = None,
+    bns_shuffle: Annotated[str | None, Cookie(alias=BNS_SHUFFLE)] = None,
+    bns_view_lists: Annotated[str | None, Cookie(alias=BNS_LISTS)] = None,
+    bns_view_states: Annotated[str | None, Cookie(alias=BNS_STATES)] = None,
 ) -> HTMLResponse:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
-    list_slug = _resolve_list(list)
     active_order = _resolve_order(order)
-    reswipe_flag = bool(reswipe)
-    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
+    list_slugs = _resolve_list_slugs(None, bns_view_lists)
+    state_filters = _resolve_state_filters(state, bns_view_states)
+    active_shuffle = _resolve_shuffle(shuffle, bns_shuffle, order=active_order)
 
-    restored = undo_last(user, list_slug)
+    restored = undo_last_across(user, list_slugs)
+    if restored is not None:
+        # invalidate so the unbanned name re-enters the deck pool
+        invalidate_decks(user, restored[1])
     deck = get_deck(
         user,
-        list_slug,
+        list_slugs,
         order=active_order,
-        reswipe_disliked=reswipe_flag,
+        state_filters=frozenset(state_filters),
         shuffle=active_shuffle,
     )
-    if restored:
+    if restored is not None:
         deck.rewind()
+    current = deck.current()
+    lookahead = deck.lookahead()
     return templates.TemplateResponse(
         request,
         "_deck.html",
         _deck_context(
             user=user,
-            list_slug=list_slug,
+            list_slugs=list_slugs,
             active_order=active_order,
-            reswipe_flag=reswipe_flag,
-            current=deck.current(),
-            lookahead=deck.lookahead(),
+            state_filters=state_filters,
+            current=current,
+            current_source=deck.source_of(current) if current else None,
+            lookahead=lookahead,
+            lookahead_source=deck.source_of(lookahead) if lookahead else None,
             shuffle=active_shuffle,
         ),
     )
+
+
+# --------------------------------------------------------------------------- #
+#                                shuffle reset                                #
+# --------------------------------------------------------------------------- #
+
+
+@app.post("/shuffle/reset")
+def shuffle_reset(request: Request) -> RedirectResponse:
+    """Drop the shuffle cookie so the next GET mints a fresh token.
+
+    The redirect target is the Referer when it's same-origin, else /swipe.
+    """
+    target = _same_origin_path(request, request.headers.get("referer")) or "/swipe"
+    response = RedirectResponse(url=target, status_code=303)
+    response.delete_cookie(BNS_SHUFFLE, path="/")
+    return response
+
+
+# --------------------------------------------------------------------------- #
+#                                  overview                                   #
+# --------------------------------------------------------------------------- #
+
+
+def _resolve_overview_list(slug: str | None) -> str:
+    """Pick the requested list or fall back to the first available."""
+    available = list_available_lists()
+    if not available:
+        raise HTTPException(
+            status_code=503,
+            detail="No name lists found. Run `uv run task scrape` to generate them.",
+        )
+    if slug:
+        for nl in available:
+            if nl.slug == slug:
+                return slug
+    return available[0].slug
 
 
 def _overview_context(user: str, list_slug: str) -> dict[str, object]:
@@ -327,8 +453,6 @@ def _overview_context(user: str, list_slug: str) -> dict[str, object]:
         "user": user,
         "active_list": list_slug,
         "ov": overview(user, list_slug),
-        # names manually added to this list, so the overview can show the
-        # extra "delete from list" action on those rows
         "manual_names": set(load_manual_names(list_slug)),
     }
 
@@ -343,7 +467,7 @@ def overview_page(
     if isinstance(user_or_redirect, RedirectResponse):
         return user_or_redirect
     user = user_or_redirect
-    list_slug = _resolve_list(list)
+    list_slug = _resolve_overview_list(list)
     return templates.TemplateResponse(
         request,
         "overview.html",
@@ -361,14 +485,11 @@ def overview_remove(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     who: WhoCookie = None,
 ) -> HTMLResponse:
-    """Remove one of the current user's own swipes, return the refreshed body."""
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
-    list_slug = _resolve_list(list)
-    # the DELETE is scoped to `user` (the cookie identity), so a user can
-    # only ever remove their own swipes
+    list_slug = _resolve_overview_list(list)
     remove_swipe(user, list_slug, name.strip())
     return templates.TemplateResponse(
         request,
@@ -383,12 +504,11 @@ def overview_reset(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     who: WhoCookie = None,
 ) -> HTMLResponse:
-    """Wipe all of the current user's swipes for a list, return refreshed body."""
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
-    list_slug = _resolve_list(list)
+    list_slug = _resolve_overview_list(list)
     reset_list(user, list_slug)
     return templates.TemplateResponse(
         request,
@@ -404,19 +524,13 @@ def overview_delete_from_list(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     who: WhoCookie = None,
 ) -> HTMLResponse:
-    """Delete a manually-added name: drop it from the list AND remove the swipe.
-
-    Only manual additions can be deleted this way; the request is ignored for
-    names that come from the base CSV.
-    """
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
-    list_slug = _resolve_list(list)
+    list_slug = _resolve_overview_list(list)
     clean = name.strip()
     if remove_manual_name(list_slug, clean):
-        # drop the swipe for every user, since the name no longer exists
         for u in USERS:
             remove_swipe(u, list_slug, clean)
         invalidate_list_decks(list_slug)
@@ -434,18 +548,6 @@ def overview_delete_from_list(
 LISTS_PAGE_SIZE = 50
 
 
-def _resolve_list_slugs(values: list[str] | None) -> list[str]:
-    """Filter the requested slugs down to ones that actually exist.
-
-    The lists page is fine with an empty selection (renders an empty body), so
-    unlike /swipe it does NOT fall back to the first available list.
-    """
-    if not values:
-        return []
-    available = {nl.slug for nl in list_available_lists()}
-    return [s for s in values if s in available]
-
-
 def _lists_context(
     *,
     user: str,
@@ -455,17 +557,13 @@ def _lists_context(
     states: list[str],
     offset: int,
     rows_all: list[NameRow],
-    shuffle: str | None = None,
+    shuffle: str,
 ) -> dict[str, object]:
     end = offset + LISTS_PAGE_SIZE
     visible = rows_all[offset:end]
     has_more = end < len(rows_all)
     next_offset = end if has_more else None
-    # `add_list_slug` is the slug the in-page add-name form should target.
-    # Auto-selects when exactly one list is checked, else None (form disabled).
     add_list_slug = list_slugs[0] if len(list_slugs) == 1 else None
-    # URL the infinite-scroll trigger calls when the last row of this batch
-    # becomes visible. Pre-built here so the template stays simple.
     next_rows_url: str | None = None
     if next_offset is not None:
         params: list[tuple[str, str]] = [("list", s) for s in list_slugs]
@@ -485,24 +583,15 @@ def _lists_context(
         "active_view": view,
         "active_states": states,
         "active_states_set": set(states),
-        "active_shuffle": shuffle or "",
+        "active_shuffle": shuffle,
         "rows": visible,
         "rows_total": len(rows_all),
         "has_more": has_more,
         "next_offset": next_offset,
         "next_rows_url": next_rows_url,
         "add_list_slug": add_list_slug,
-        # Drives the header's "Add single name" form: it only renders when a
-        # single list is the unambiguous target.
         "active_list": add_list_slug,
     }
-
-
-def _normalise_shuffle(value: str | None, *, order: str) -> str | None:
-    """Keep `shuffle` only in random order and clamp to a sane length."""
-    if order != ORDER_RANDOM or not value:
-        return None
-    return value[:32]
 
 
 @app.get("/lists", response_class=HTMLResponse)
@@ -514,20 +603,20 @@ def lists_page(
     state: Annotated[list[str] | None, Query()] = None,
     shuffle: str | None = None,
     who: WhoCookie = None,
+    bns_shuffle: Annotated[str | None, Cookie(alias=BNS_SHUFFLE)] = None,
+    bns_view_lists: Annotated[str | None, Cookie(alias=BNS_LISTS)] = None,
+    bns_view_states: Annotated[str | None, Cookie(alias=BNS_STATES)] = None,
 ) -> Response:
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         return user_or_redirect
     user = user_or_redirect
-    list_slugs = _resolve_list_slugs(list)
+    list_slugs = _resolve_list_slugs(list, bns_view_lists)
     active_order = _resolve_order(order)
     active_view = normalise_view(view)
-    states = normalise_states(state)
-    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
-    # Fresh arrival on random order: mint a session shuffle token and bake it
-    # into the URL so the order stays put across navigation / refresh.
-    if active_order == ORDER_RANDOM and not active_shuffle:
-        return _redirect_with_shuffle(request)
+    states = _resolve_state_filters(state, bns_view_states)
+    active_shuffle = _resolve_shuffle(shuffle, bns_shuffle, order=active_order)
+
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
@@ -545,7 +634,14 @@ def lists_page(
         rows_all=rows_all,
         shuffle=active_shuffle,
     )
-    return templates.TemplateResponse(request, "lists.html", ctx)
+    response = templates.TemplateResponse(request, "lists.html", ctx)
+    _set_view_cookies(
+        response,
+        shuffle=active_shuffle,
+        list_slugs=list_slugs,
+        state_filters=states,
+    )
+    return response
 
 
 @app.get("/lists/rows", response_class=HTMLResponse)
@@ -558,17 +654,19 @@ def lists_rows(
     shuffle: str | None = None,
     offset: int = 0,
     who: WhoCookie = None,
+    bns_shuffle: Annotated[str | None, Cookie(alias=BNS_SHUFFLE)] = None,
+    bns_view_lists: Annotated[str | None, Cookie(alias=BNS_LISTS)] = None,
+    bns_view_states: Annotated[str | None, Cookie(alias=BNS_STATES)] = None,
 ) -> Response:
-    """Return one page of rows for infinite scroll (HTMX revealed-trigger)."""
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
     user = user_or_redirect
-    list_slugs = _resolve_list_slugs(list)
+    list_slugs = _resolve_list_slugs(list, bns_view_lists)
     active_order = _resolve_order(order)
     active_view = normalise_view(view)
-    states = normalise_states(state)
-    active_shuffle = _normalise_shuffle(shuffle, order=active_order)
+    states = _resolve_state_filters(state, bns_view_states)
+    active_shuffle = _resolve_shuffle(shuffle, bns_shuffle, order=active_order)
     rows_all = build_rows(
         user=user,
         list_slugs=list_slugs,
@@ -590,7 +688,7 @@ def lists_rows(
 
 
 def _resolve_row_list(slug: str) -> str:
-    """Validate a per-row list slug. Unlike _resolve_list, no fallback."""
+    """Validate a per-row list slug. Unlike _resolve_overview_list, no fallback."""
     available = {nl.slug for nl in list_available_lists()}
     if slug not in available:
         raise HTTPException(status_code=400, detail="Unknown list")
@@ -598,25 +696,18 @@ def _resolve_row_list(slug: str) -> str:
 
 
 def _render_row(
-    request: Request,
     *,
     user: str,
     list_slug: str,
     name: str,
-) -> HTMLResponse:
-    """Render the single-row partial after a per-row mutation."""
+) -> list[NameRow]:
     rows = build_rows(
         user=user,
         list_slugs=[list_slug],
-        order=ORDER_RANDOM,  # order doesn't matter for a single-row lookup
+        order=ORDER_RANDOM,
         states=list(ALL_STATES),
     )
-    row = next((r for r in rows if r.name == name), None)
-    return templates.TemplateResponse(
-        request,
-        "_lists_row.html",
-        {"row": row, "list_slug": list_slug, "name": name},
-    )
+    return [r for r in rows if r.name == name]
 
 
 @app.post("/lists/swipe", response_class=HTMLResponse)
@@ -637,7 +728,19 @@ def lists_swipe(
     clean = name.strip()
     record(user, list_slug, clean, direction)
     invalidate_decks(user, list_slug)
-    return _render_row(request, user=user, list_slug=list_slug, name=clean)
+    new_match = direction == LIKE and is_match(user, list_slug, clean)
+    rows = _render_row(user=user, list_slug=list_slug, name=clean)
+    row = rows[0] if rows else None
+    response = templates.TemplateResponse(
+        request,
+        "_lists_row.html",
+        {"row": row, "list_slug": list_slug, "name": clean},
+    )
+    if new_match:
+        # JS listens for this event on the lists body and runs the match
+        # celebration overlay. Payload is JSON so the name survives quoting.
+        response.headers["HX-Trigger"] = json.dumps({"matchCreated": {"name": clean}})
+    return response
 
 
 @app.post("/lists/unswipe", response_class=HTMLResponse)
@@ -654,7 +757,13 @@ def lists_unswipe(
     list_slug = _resolve_row_list(list)
     clean = name.strip()
     remove_swipe(user, list_slug, clean)
-    return _render_row(request, user=user, list_slug=list_slug, name=clean)
+    rows = _render_row(user=user, list_slug=list_slug, name=clean)
+    row = rows[0] if rows else None
+    return templates.TemplateResponse(
+        request,
+        "_lists_row.html",
+        {"row": row, "list_slug": list_slug, "name": clean},
+    )
 
 
 @app.post("/lists/delete", response_class=HTMLResponse)
@@ -663,7 +772,6 @@ def lists_delete(
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     who: WhoCookie = None,
 ) -> HTMLResponse:
-    """Delete a manually-added name from a list (per-row delete button)."""
     user_or_redirect = _user_or_redirect(who)
     if isinstance(user_or_redirect, RedirectResponse):
         raise HTTPException(status_code=401, detail="No user")
@@ -673,7 +781,6 @@ def lists_delete(
         for u in USERS:
             remove_swipe(u, list_slug, clean)
         invalidate_list_decks(list_slug)
-    # HTMX swaps the row's outerHTML with this empty body -> row disappears.
     return HTMLResponse("")
 
 
@@ -683,7 +790,6 @@ def add_name(
     name: Annotated[str, Form()],
     list: Annotated[str, Form(alias="list")],  # noqa: A002
     order: Annotated[str | None, Form()] = None,
-    reswipe: Annotated[int, Form()] = 0,
     who: WhoCookie = None,
 ) -> RedirectResponse:
     """Add a single name to a list's manual CSV and auto-like it for this user."""
@@ -691,49 +797,30 @@ def add_name(
     if isinstance(user_or_redirect, RedirectResponse):
         return user_or_redirect
     user = user_or_redirect
-    list_slug = _resolve_list(list)
+    available = {nl.slug for nl in list_available_lists()}
+    if list not in available:
+        raise HTTPException(status_code=400, detail="Unknown list")
     active_order = _resolve_order(order)
-    reswipe_flag = bool(reswipe)
-    # If the name already exists in the list, don't add it again -- but still
-    # record a LIKE for the current user, so the action is never a no-op from
-    # their perspective. Match case-insensitively and like the stored casing
-    # so it ties to the canonical entry in the deck.
     cleaned = name.strip()
     target_key = cleaned.casefold()
     existing = next(
-        (n for n in load_names(list_slug) if n.casefold() == target_key),
+        (n for n in load_names(list) if n.casefold() == target_key),
         None,
     )
     if existing is not None:
-        record(user, list_slug, existing, LIKE)
-        # Name already in the pool: only this user's swipe changed, so the
-        # other user's decks don't need to know -- a normal per-user
-        # invalidation is enough.
-        invalidate_decks(user, list_slug)
+        record(user, list, existing, LIKE)
+        invalidate_decks(user, list)
     else:
         try:
-            added = add_manual_name(list_slug, name)
+            added = add_manual_name(list, name)
         except ValueError:
-            # invalid (empty / too long) -- bounce back without recording
             added = None
         if added is not None:
-            record(user, list_slug, added, LIKE)
-            # The list's pool changed: alpha/partner_likes decks rebuild so
-            # the new name lands in its natural slot; random decks get the
-            # name appended to the end, preserving the existing order so the
-            # user doesn't lose their scroll position on /lists or their
-            # place in the swipe deck.
-            absorb_added_name(list_slug, added)
-    # Send the user back to whichever page they submitted from, so adding
-    # a name from /overview doesn't kick them to /swipe. We only honour the
-    # Referer when it's same-origin (path-only), falling back to /swipe.
+            record(user, list, added, LIKE)
+            absorb_added_name(list, added)
     target = _same_origin_path(request, request.headers.get("referer"))
     if target is None:
-        target = f"/swipe?list={list_slug}&order={active_order}"
-        if reswipe_flag:
-            target += "&reswipe=1"
-    # Flag the redirect so the header can re-open the "Add name(s)" panel,
-    # letting the user queue several names in a row.
+        target = f"/swipe?list={list}&order={active_order}"
     sep = "&" if "?" in target else "?"
     target += f"{sep}added=1"
     return RedirectResponse(url=target, status_code=303)
@@ -744,14 +831,11 @@ def _same_origin_path(request: Request, referer: str | None) -> str | None:
     if not referer:
         return None
     parsed = urlparse(referer)
-    # Reject anything that targets a different host.
     if parsed.netloc and parsed.netloc != request.url.netloc:
         return None
     path = parsed.path or "/"
-    # Don't loop back into /add-name itself.
-    if path.startswith("/add-name"):
+    if path.startswith(("/add-name", "/shuffle/reset")):
         return None
-    # Strip any pre-existing added=1 flag from the query so we don't double it.
     query = parsed.query
     if query:
         parts = [p for p in query.split("&") if p and p != "added=1"]
@@ -802,3 +886,8 @@ async def post_upload(
             status_code=400,
         )
     return RedirectResponse(url=f"/swipe?list={nl.slug}", status_code=303)
+
+
+# `undo_last` is re-exported here only so the import in tests' helper still
+# resolves; routes themselves use undo_last_across.
+__all__ = ["app", "undo_last"]

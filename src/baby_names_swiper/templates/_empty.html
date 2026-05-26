@@ -1,6 +1,12 @@
 <div class="card-empty">
-    <p>You've swiped them all in this list.</p>
+    <p>You've swiped them all.</p>
+    {% if active_list %}
     <p style="margin-top: 0.75rem;">
         <a href="/overview?list={{ active_list }}">See your overview &rarr;</a>
     </p>
+    {% else %}
+    <p style="margin-top: 0.75rem;">
+        <a href="/overview">See your overview &rarr;</a>
+    </p>
+    {% endif %}
 </div>

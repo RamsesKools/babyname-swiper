@@ -1,38 +1,69 @@
 {% extends "base.html" %}
-{% block title %}Swipe — {{ active_list }}{% endblock %}
+{% block title %}Swipe — names{% endblock %}
 {% block content %}
-<div class="swipe-controls">
-    <div class="control">
-        <label for="list-picker">list</label>
-        <select id="list-picker" name="list" data-control="list">
+{# Shared deck controls -- the same fieldset markup that /lists uses. Submits
+   the full form on any change so the new selection is reflected immediately. #}
+<form id="swipe-controls" class="lists-controls" method="get" action="/swipe">
+    <fieldset class="lists-control">
+        <legend>Lists</legend>
+        <div class="lists-checkbox-row">
             {% for nl in lists %}
-            <option value="{{ nl.slug }}" {% if nl.slug == active_list %}selected{% endif %}>
-                {{ nl.label }}
-            </option>
+            <label class="lists-checkbox">
+                <input type="checkbox"
+                       name="list"
+                       value="{{ nl.slug }}"
+                       {% if nl.slug in selected_set %}checked{% endif %}>
+                <span>{{ nl.label }}</span>
+            </label>
             {% endfor %}
-        </select>
+        </div>
+    </fieldset>
+
+    <div class="lists-control-row">
+        <div class="lists-control">
+            <label for="swipe-order">order</label>
+            <select id="swipe-order" name="order">
+                <option value="random"        {% if active_order == 'random' %}selected{% endif %}>random (weighted)</option>
+                <option value="alpha"         {% if active_order == 'alpha' %}selected{% endif %}>alphabetical</option>
+                <option value="partner_likes" {% if active_order == 'partner_likes' %}selected{% endif %}>partner likes only</option>
+            </select>
+        </div>
+        <fieldset class="lists-control lists-control-filter">
+            <legend>Filter</legend>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="like"
+                       {% if 'like' in active_states_set %}checked{% endif %}>
+                <span>likes</span>
+            </label>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="dislike"
+                       {% if 'dislike' in active_states_set %}checked{% endif %}>
+                <span>dislikes</span>
+            </label>
+            <label class="lists-checkbox">
+                <input type="checkbox" name="state" value="unswiped"
+                       {% if 'unswiped' in active_states_set %}checked{% endif %}>
+                <span>unswiped</span>
+            </label>
+        </fieldset>
     </div>
-    <div class="control">
-        <label for="order-picker">order</label>
-        <select id="order-picker" name="order" data-control="order">
-            <option value="random"        {% if active_order == 'random' %}selected{% endif %}>random (weighted)</option>
-            <option value="alpha"         {% if active_order == 'alpha' %}selected{% endif %}>alphabetical</option>
-            <option value="partner_likes" {% if active_order == 'partner_likes' %}selected{% endif %}>partner likes only</option>
-        </select>
-        {% if active_order == 'random' %}
-        <button type="button" id="swipe-reshuffle" class="lists-reshuffle-btn">reshuffle</button>
-        {% endif %}
-    </div>
-    <div class="control control-checkbox">
-        <input id="reswipe-toggle"
-               type="checkbox"
-               data-control="reswipe"
-               {% if reswipe %}checked{% endif %}>
-        <label for="reswipe-toggle">reswipe disliked</label>
-    </div>
-</div>
+</form>
+
+{# Reshuffle is a plain POST form -- it clears the shuffle cookie server-side
+   and bounces back to the same page, where a fresh token will be minted. #}
+{% if active_order == 'random' %}
+<form method="post" action="/shuffle/reset" class="reshuffle-form">
+    <button type="submit" class="lists-reshuffle-btn">reshuffle</button>
+</form>
+{% endif %}
 
 <div class="swiper" id="swiper">
+    {% if not selected_slugs %}
+    <p class="empty-note lists-empty">Select one or more lists above to start.</p>
+    {% elif not active_states %}
+    <p class="empty-note lists-empty">Pick at least one state filter (likes / dislikes / unswiped).</p>
+    {% else %}
     {% include "_deck.html" with context %}
+    {% endif %}
 </div>
 {% endblock %}
